@@ -1,0 +1,107 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
+from app.core.config import settings
+from app.database import Base, engine
+from app.middleware.error_handler import register_exception_handlers
+
+# Import all routers
+from app.routers.auth import router as auth_router
+from app.routers.users import router as users_router
+from app.routers.otp_verifications import router as otp_router
+from app.routers.properties import router as properties_router
+from app.routers.rooms import router as rooms_router
+from app.routers.facilities import router as facilities_router
+from app.routers.property_photos import router as property_photos_router
+from app.routers.location import router as location_router
+from app.routers.availability import router as availability_router
+from app.routers.property_agreements import router as property_agreements_router
+
+# Note: Database tables will be created via startup event for async compatibility
+
+# Create FastAPI application
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description="Heaven Connect - Host Onboarding Platform API",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Register global exception handlers
+register_exception_handlers(app)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Create upload directory if it doesn't exist
+os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+
+# Mount static files for uploaded content
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+
+# Include routers
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
+app.include_router(otp_router, prefix="/api/v1")
+app.include_router(properties_router, prefix="/api/v1")
+app.include_router(rooms_router, prefix="/api/v1")
+app.include_router(facilities_router, prefix="/api/v1")
+app.include_router(property_photos_router, prefix="/api/v1")
+app.include_router(location_router, prefix="/api/v1")
+app.include_router(availability_router, prefix="/api/v1")
+app.include_router(property_agreements_router, prefix="/api/v1")
+
+
+@app.get("/")
+def read_root():
+    """Root endpoint with API information"""
+    return {
+        "message": "Welcome to Heaven Connect Host Onboarding API",
+        "version": settings.APP_VERSION,
+        "docs": "/docs",
+        "redoc": "/redoc",
+        "environment": settings.ENVIRONMENT
+    }
+
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "environment": settings.ENVIRONMENT,
+        "version": settings.APP_VERSION,
+        "database": "connected"
+    }
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Application startup event"""
+    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"Environment: {settings.ENVIRONMENT}")
+    print(f"Debug mode: {settings.DEBUG}")
+    
+    # Create database tables (for development - use Alembic in production)
+    if settings.ENVIRONMENT == "development":
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            print("Database tables created successfully")
+        except Exception as e:
+            print(f"Warning: Could not connect to database: {e}")
+            print("Please ensure MySQL is running and update your .env file with correct database credentials")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown event"""
+    print("Shutting down Heaven Connect API")
