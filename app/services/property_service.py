@@ -1,16 +1,111 @@
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import select, func, and_, or_
 from fastapi import HTTPException, status
+from datetime import datetime
 from app.models.property import (
     Property, Room, Facility, PropertyPhoto, Location, 
-    Availability, PropertyAgreement, PhotoCategory
+    Availability, PropertyAgreement, PhotoCategory, PropertyType, PropertyStatus
 )
 from app.models.user import User
 from app.schemas.property import (
     PropertyProfileCreate, PropertyDocumentsCreate, RoomCreate, 
     FacilityCreate, LocationCreate, AvailabilityCreate, 
-    PropertyAgreementCreate, PropertyOnboardingStatus
+    PropertyAgreementCreate, PropertyOnboardingStatus, PropertyTypeCreate, PropertyTypeUpdate
 )
+from app.utils.error_handler import create_server_error_http_exception
+
+
+class PropertyTypeService:
+    @staticmethod
+    def create_property_type(db: Session, type_data: PropertyTypeCreate) -> PropertyType:
+        """Create a new property type"""
+        # Check if property type already exists
+        existing_type = db.query(PropertyType).filter(PropertyType.name == type_data.name).first()
+        if existing_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property type already exists"
+            )
+        
+        property_type = PropertyType(
+            name=type_data.name,
+            description=type_data.description,
+            is_active=type_data.is_active
+        )
+        
+        db.add(property_type)
+        db.commit()
+        db.refresh(property_type)
+        return property_type
+    
+    @staticmethod
+    def get_property_type_by_id(db: Session, type_id: int) -> Optional[PropertyType]:
+        """Get property type by ID"""
+        return db.query(PropertyType).filter(PropertyType.id == type_id).first()
+    
+    @staticmethod
+    def get_all_property_types(db: Session, active_only: bool = True) -> List[PropertyType]:
+        """Get all property types"""
+        query = db.query(PropertyType)
+        if active_only:
+            query = query.filter(PropertyType.is_active == True)
+        return query.all()
+    
+    @staticmethod
+    def update_property_type(db: Session, type_id: int, type_data: PropertyTypeUpdate) -> PropertyType:
+        """Update property type"""
+        property_type = PropertyTypeService.get_property_type_by_id(db, type_id)
+        if not property_type:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property type not found"
+            )
+        
+        if type_data.name is not None:
+            # Check if new name conflicts with existing
+            existing_type = db.query(PropertyType).filter(
+                PropertyType.name == type_data.name,
+                PropertyType.id != type_id
+            ).first()
+            if existing_type:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Property type name already exists"
+                )
+            property_type.name = type_data.name
+        
+        if type_data.description is not None:
+            property_type.description = type_data.description
+        
+        if type_data.is_active is not None:
+            property_type.is_active = type_data.is_active
+        
+        db.commit()
+        db.refresh(property_type)
+        return property_type
+    
+    @staticmethod
+    def delete_property_type(db: Session, type_id: int) -> bool:
+        """Delete property type (soft delete by setting is_active to False)"""
+        property_type = PropertyTypeService.get_property_type_by_id(db, type_id)
+        if not property_type:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property type not found"
+            )
+        
+        # Check if any properties are using this type
+        properties_using_type = db.query(Property).filter(Property.property_type_id == type_id).first()
+        if properties_using_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete property type as it is being used by properties"
+            )
+        
+        property_type.is_active = False
+        db.commit()
+        return True
 
 
 class PropertyService:
@@ -30,6 +125,8 @@ class PropertyService:
             id=user_id,
             property_name=profile_data.property_name,
             alternate_phone=profile_data.alternate_phone,
+            property_type_id=profile_data.property_type_id,
+            status=profile_data.status,
             progress_step=2  # Move to step 2
         )
         
@@ -370,4 +467,177 @@ class PropertyService:
             progress_step=property_obj.progress_step,
             is_verified=property_obj.is_verified,
             completed_steps=all_steps
-        ) 
+        )
+    
+    @staticmethod
+    def search_properties(db: Session, search_request) -> dict:
+        """Search properties with pagination and filters"""
+        try:
+            # Build base query with joins for property type
+            query = db.query(Property).join(Property.property_type, isouter=True)
+            filters = []
+            
+            # Apply user ID filter
+            if search_request.user_id:
+                filters.append(Property.user_id == search_request.user_id)
+            
+            # Apply property type ID filter (array support)
+            if search_request.property_type_id:
+                if len(search_request.property_type_id) == 1:
+                    filters.append(Property.property_type_id == search_request.property_type_id[0])
+                else:
+                    filters.append(Property.property_type_id.in_(search_request.property_type_id))
+            
+            # Apply property type name filter (array support)
+            if search_request.property_type_name:
+                if len(search_request.property_type_name) == 1:
+                    filters.append(PropertyType.name == search_request.property_type_name[0])
+                else:
+                    filters.append(PropertyType.name.in_(search_request.property_type_name))
+            
+            # Apply status filter (array support)
+            if search_request.status:
+                if len(search_request.status) == 1:
+                    filters.append(Property.status == search_request.status[0])
+                else:
+                    filters.append(Property.status.in_(search_request.status))
+            
+            # Apply date filter
+            if search_request.date_filter:
+                if search_request.date_filter.from_date:
+                    from_date = datetime.fromtimestamp(search_request.date_filter.from_date / 1000)
+                    filters.append(Property.created_at >= from_date)
+                
+                if search_request.date_filter.to_date:
+                    to_date = datetime.fromtimestamp(search_request.date_filter.to_date / 1000)
+                    filters.append(Property.created_at <= to_date)
+            
+            # Apply search query filter
+            if search_request.search_query:
+                search_term = f"%{search_request.search_query}%"
+                filters.append(Property.property_name.ilike(search_term))
+            
+            # Apply all filters
+            if filters:
+                query = query.filter(and_(*filters))
+            
+            # Order by created_at desc BEFORE pagination
+            query = query.order_by(Property.created_at.desc())
+            
+            # Get total count for pagination
+            total = query.count()
+            
+            # Calculate pagination
+            total_pages = (total + search_request.limit - 1) // search_request.limit
+            skip = (search_request.page - 1) * search_request.limit
+            
+            # Apply pagination AFTER ordering
+            query = query.offset(skip).limit(search_request.limit)
+            
+            # Execute query
+            properties = query.all()
+            
+            # Build pagination info
+            pagination_info = {
+                "page": search_request.page,
+                "limit": search_request.limit,
+                "total": total,
+                "total_pages": total_pages,
+                "has_next": search_request.page < total_pages,
+                "has_prev": search_request.page > 1
+            }
+            
+            return {
+                "properties": properties,
+                "pagination": pagination_info
+            }
+            
+        except Exception as e:
+            raise create_server_error_http_exception(
+                message=f"Property search failed: {str(e)}",
+                component="property_search"
+            )
+
+    @staticmethod
+    def activate_property(db: Session, property_id: int) -> Optional[Property]:
+        """Activate property by changing status to ACTIVE"""
+        try:
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                return None
+            
+            # Change status to ACTIVE
+            property_obj.status = PropertyStatus.ACTIVE
+            db.commit()
+            db.refresh(property_obj)
+            return property_obj
+            
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to activate property: {str(e)}",
+                component="property_activate"
+            )
+
+    @staticmethod
+    def deactivate_property(db: Session, property_id: int) -> Optional[Property]:
+        """Deactivate property by changing status to INACTIVE"""
+        try:
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                return None
+            
+            # Change status to INACTIVE
+            property_obj.status = PropertyStatus.INACTIVE
+            db.commit()
+            db.refresh(property_obj)
+            return property_obj
+            
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to deactivate property: {str(e)}",
+                component="property_deactivate"
+            )
+
+    @staticmethod
+    def block_property(db: Session, property_id: int) -> Optional[Property]:
+        """Block property by changing status to BLOCKED"""
+        try:
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                return None
+            
+            # Change status to BLOCKED
+            property_obj.status = PropertyStatus.BLOCKED
+            db.commit()
+            db.refresh(property_obj)
+            return property_obj
+            
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to block property: {str(e)}",
+                component="property_block"
+            )
+
+    @staticmethod
+    def soft_delete_property(db: Session, property_id: int) -> Optional[Property]:
+        """Soft delete property by changing status to DELETED"""
+        try:
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                return None
+            
+            # Change status to DELETED
+            property_obj.status = PropertyStatus.DELETED
+            db.commit()
+            db.refresh(property_obj)
+            return property_obj
+            
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to delete property: {str(e)}",
+                component="property_soft_delete"
+            ) 

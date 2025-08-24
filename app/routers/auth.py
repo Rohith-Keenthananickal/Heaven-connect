@@ -17,7 +17,7 @@ from app.utils.error_handler import (
     create_server_error_http_exception,
     extract_request_info
 )
-from app.models.user import AuthProvider
+from app.models.user import AuthProvider, UserStatus
 from app.schemas.errors import ErrorCodes, ErrorMessages
 from datetime import timedelta
 
@@ -111,7 +111,7 @@ async def login(
                 trace_id=request_info["trace_id"]
             )
         
-        if not user.status:
+        if not user.status == UserStatus.ACTIVE:
             raise create_authentication_http_exception(
                 message="User account is deactivated",
                 auth_type="account_status",

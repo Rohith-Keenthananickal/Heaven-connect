@@ -1,31 +1,74 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
-from app.models.property import PropertyClassification, FacilityCategory, PhotoCategory
+from app.models.property import PropertyClassification, PropertyStatus, FacilityCategory, PhotoCategory
 
 
-class PropertyCreate(BaseModel):
-    user_id: int = Field(..., description="ID of the user who owns this property")
-    property_name: str = Field(..., min_length=2, max_length=255)
-    alternate_phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
-    id_proof_type: Optional[str] = Field(None, min_length=2, max_length=100)
-    id_proof_url: Optional[str] = Field(None, max_length=500)
-    certificate_number: Optional[str] = Field(None, max_length=100)
-    trade_license_number: Optional[str] = Field(None, max_length=100)
-    classification: PropertyClassification = PropertyClassification.SILVER
-    progress_step: int = Field(1, ge=1, le=9)
-    is_verified: bool = False
+class PropertyTypeBase(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100, description="Property type name (e.g., Backwater & Scenic, Hill Stations & Wildlife)")
+    description: Optional[str] = Field(None, max_length=500, description="Description of the property type")
+    is_active: bool = Field(True, description="Whether this property type is active")
+
+
+class PropertyTypeCreate(PropertyTypeBase):
+    pass
+
+
+class PropertyTypeUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    is_active: Optional[bool] = None
+
+
+class PropertyTypeResponse(PropertyTypeBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class PropertyTypeListResponse(BaseModel):
+    property_types: List[PropertyTypeResponse]
+    total: int
+
+
+class PropertyStatusUpdate(BaseModel):
+    status: PropertyStatus = Field(..., description="New property status (ACTIVE, INACTIVE, BLOCKED, DELETED)")
+
+
+class PropertyBase(BaseModel):
+    user_id: int = Field(..., description="ID of the user who owns the property")
+    property_name: str = Field(..., min_length=1, max_length=200, description="Name of the property")
+    alternate_phone: Optional[str] = Field(None, max_length=20, description="Alternate phone number")
+    area_coordinator_id: Optional[int] = Field(None, description="ID of the area coordinator")
+    property_type_id: Optional[int] = Field(None, description="ID of the property type")
+    id_proof_type: Optional[str] = Field(None, max_length=50, description="Type of ID proof")
+    id_proof_url: Optional[str] = Field(None, max_length=500, description="URL of the ID proof document")
+    certificate_number: Optional[str] = Field(None, max_length=100, description="Property certificate number")
+    trade_license_number: Optional[str] = Field(None, max_length=100, description="Trade license number")
+    classification: PropertyClassification = Field(PropertyClassification.SILVER, description="Property classification")
+    status: PropertyStatus = Field(PropertyStatus.ACTIVE, description="Property status")
+    progress_step: int = Field(1, ge=1, le=10, description="Current progress step")
+    is_verified: bool = Field(False, description="Whether the property is verified")
+
+
+class PropertyCreate(PropertyBase):
+    pass
 
 
 class PropertyProfileCreate(BaseModel):
     user_id: int = Field(..., description="ID of the user who owns this property")
     property_name: str = Field(..., min_length=2, max_length=255)
     alternate_phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
+    property_type_id: Optional[int] = Field(None, description="ID of the property type")
     id_proof_type: Optional[str] = Field(None, min_length=2, max_length=100)
     id_proof_url: Optional[str] = Field(None, max_length=500)
     certificate_number: Optional[str] = Field(None, max_length=100)
     trade_license_number: Optional[str] = Field(None, max_length=100)
     classification: PropertyClassification = PropertyClassification.SILVER
+    status: PropertyStatus = PropertyStatus.ACTIVE
     progress_step: int = Field(1, ge=1, le=9)
     is_verified: bool = False
 
@@ -35,7 +78,10 @@ class PropertyProfileResponse(BaseModel):
     property_name: Optional[str]
     alternate_phone: Optional[str]
     area_coordinator_id: Optional[int]
+    property_type_id: Optional[int]
+    property_type_name: Optional[str]
     classification: PropertyClassification
+    status: PropertyStatus
     progress_step: int
     is_verified: bool
     created_at: datetime
@@ -51,11 +97,14 @@ class PropertyResponse(BaseModel):
     property_name: Optional[str]
     alternate_phone: Optional[str]
     area_coordinator_id: Optional[int]
+    property_type_id: Optional[int]
+    property_type_name: Optional[str]
     id_proof_type: Optional[str]
     id_proof_url: Optional[str]
     certificate_number: Optional[str]
     trade_license_number: Optional[str]
     classification: PropertyClassification
+    status: PropertyStatus
     progress_step: int
     is_verified: bool
     created_at: datetime
@@ -76,11 +125,13 @@ class PropertyProfileUpdate(BaseModel):
     user_id: Optional[int] = Field(None, description="ID of the user who owns this property")
     property_name: Optional[str] = Field(None, min_length=2, max_length=255)
     alternate_phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
+    property_type_id: Optional[int] = Field(None, description="ID of the property type")
     id_proof_type: Optional[str] = Field(None, min_length=2, max_length=100)
     id_proof_url: Optional[str] = Field(None, max_length=500)
     certificate_number: Optional[str] = Field(None, max_length=100)
     trade_license_number: Optional[str] = Field(None, max_length=100)
     classification: Optional[PropertyClassification] = None
+    status: Optional[PropertyStatus] = None
     progress_step: Optional[int] = Field(None, ge=1, le=9)
     is_verified: Optional[bool] = None
 
@@ -235,4 +286,35 @@ class PropertyOnboardingStatus(BaseModel):
 
 class CoordinatorAssignment(BaseModel):
     property_id: int
-    coordinator_id: int 
+    coordinator_id: int
+
+
+class PropertySearchRequest(BaseModel):
+    user_id: Optional[int] = Field(None, description="Filter by user ID")
+    property_type_id: Optional[List[int]] = Field(None, description="Filter by property type IDs (array)")
+    property_type_name: Optional[List[str]] = Field(None, description="Filter by property type names (array)")
+    status: Optional[List[PropertyStatus]] = Field(None, description="Filter by property statuses (array)")
+    page: int = Field(1, ge=1, description="Page number (1-based)")
+    search_query: Optional[str] = Field(None, description="Search query for property name")
+    date_filter: Optional["DateFilter"] = Field(None, description="Date range filter for created_at")
+    limit: int = Field(20, ge=1, le=100, description="Number of items per page")
+
+
+class DateFilter(BaseModel):
+    from_date: Optional[int] = Field(None, description="From date in milliseconds")
+    to_date: Optional[int] = Field(None, description="To date in milliseconds")
+
+
+class PaginationInfo(BaseModel):
+    page: int
+    limit: int
+    total: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
+class PropertySearchResponse(BaseModel):
+    status: str = "success"
+    data: List[PropertyResponse]
+    pagination: PaginationInfo 

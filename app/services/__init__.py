@@ -1,7 +1,7 @@
 from .property_service import PropertyService
-from .user_service import UserService
+from .users_service import UsersService
 
 __all__ = [
     "PropertyService", 
-    "UserService"
+    "UsersService"
 ]

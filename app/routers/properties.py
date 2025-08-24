@@ -1,165 +1,200 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db
-from app.schemas.property import PropertyProfileCreate, PropertyProfileResponse, PropertyOnboardingStatus
+from sqlalchemy.orm import Session
+from app.database import get_db, get_sync_db
+from app.schemas.property import (
+    PropertyCreate, PropertyProfileCreate, PropertyProfileUpdate, 
+    PropertyProfileResponse, PropertyResponse, PropertySearchRequest, 
+    PropertySearchResponse, PropertyStatusUpdate
+)
 from app.services.property_service import PropertyService
+from app.utils.error_handler import create_server_error_http_exception
+from app.models.property import PropertyStatus
+from typing import List, Optional
 
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
-@router.post("/", response_model=PropertyProfileResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/profile", response_model=PropertyProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_property_profile(
-    profile_data: PropertyProfileCreate,
-    user_id: int = Query(..., description="User ID to create property profile for"),
+    property_profile: PropertyProfileCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new property profile (Step 1)"""
+    """Create a new property profile"""
     try:
-        # Convert AsyncSession to Session for PropertyService
-        from sqlalchemy.orm import Session
-        session = Session(bind=db.bind)
-        try:
-            property_profile = PropertyService.create_property_profile(session, user_id, profile_data)
-            return property_profile
-        finally:
-            session.close()
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+        db_property = await PropertyService.create_property_profile(
+            db, 
+            property_profile.user_id,
+            property_profile.property_name,
+            property_profile.alternate_phone,
+            property_profile.area_coordinator_id,
+            property_profile.property_type_id,
+            property_profile.id_proof_type,
+            property_profile.id_proof_url,
+            property_profile.certificate_number,
+            property_profile.trade_license_number,
+            property_profile.classification,
+            property_profile.status,
+            property_profile.progress_step,
+            property_profile.is_verified
         )
-
-
-@router.get("/", response_model=List[PropertyProfileResponse])
-async def get_properties(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    verified_only: bool = Query(False),
-    coordinator_id: int = Query(None),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get all properties with pagination and filters"""
-    try:
-        # Convert AsyncSession to Session for PropertyService
-        from sqlalchemy.orm import Session
-        session = Session(bind=db.bind)
-        try:
-            if verified_only:
-                properties = PropertyService.get_all_properties(session, skip=skip, limit=limit, verified_only=True)
-            elif coordinator_id:
-                properties = PropertyService.get_properties_by_coordinator(session, coordinator_id)
-            else:
-                properties = PropertyService.get_all_properties(session, skip=skip, limit=limit)
-            
-            return properties
-        finally:
-            session.close()
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch properties: {str(e)}"
-        )
-
-
-@router.get("/{property_id}", response_model=PropertyProfileResponse)
-async def get_property(
-    property_id: int,
-    db: AsyncSession = Depends(get_db)
-):
-    """Get a specific property by ID"""
-    try:
-        # Convert AsyncSession to Session for PropertyService
-        from sqlalchemy.orm import Session
-        session = Session(bind=db.bind)
-        try:
-            property_obj = PropertyService.get_property_by_id(session, property_id)
-            if not property_obj:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Property not found"
-                )
-            return property_obj
-        finally:
-            session.close()
+        return db_property
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch property: {str(e)}"
+            detail=f"Failed to create property profile: {str(e)}"
         )
 
 
-@router.get("/{property_id}/onboarding-status", response_model=PropertyOnboardingStatus)
-async def get_property_onboarding_status(
+@router.get("/profile/{property_id}", response_model=PropertyProfileResponse)
+async def get_property_profile(
     property_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get property onboarding status"""
+    """Get a specific property profile by ID"""
     try:
-        # Convert AsyncSession to Session for PropertyService
-        from sqlalchemy.orm import Session
-        session = Session(bind=db.bind)
-        try:
-            status_obj = PropertyService.get_onboarding_status(session, property_id)
-            return status_obj
-        finally:
-            session.close()
+        db_property = await PropertyService.get_property_profile(db, property_id)
+        if not db_property:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property profile not found"
+            )
+        return db_property
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch property onboarding status: {str(e)}"
+            detail=f"Failed to fetch property profile: {str(e)}"
         )
 
 
-@router.post("/{property_id}/verify")
-async def verify_property(
+@router.put("/profile/{property_id}", response_model=PropertyProfileResponse)
+async def update_property_profile(
     property_id: int,
+    property_update: PropertyProfileUpdate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Verify property profile"""
+    """Update a property profile"""
     try:
-        # Convert AsyncSession to Session for PropertyService
-        from sqlalchemy.orm import Session
-        session = Session(bind=db.bind)
-        try:
-            property_obj = PropertyService.verify_property(session, property_id)
-            return {"message": "Property verified successfully", "property": property_obj}
-        finally:
-            session.close()
+        db_property = await PropertyService.update_property_profile(
+            db, 
+            property_id, 
+            property_update
+        )
+        if not db_property:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property profile not found"
+            )
+        return db_property
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to verify property: {str(e)}"
+            detail=f"Failed to update property profile: {str(e)}"
         )
 
 
-@router.post("/{property_id}/assign-coordinator")
-async def assign_coordinator(
+@router.delete("/profile/{property_id}")
+async def delete_property_profile(
     property_id: int,
-    coordinator_id: int = Query(..., description="Coordinator user ID"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Assign area coordinator to property"""
+    """Delete a property profile"""
     try:
-        # Convert AsyncSession to Session for PropertyService
-        from sqlalchemy.orm import Session
-        session = Session(bind=db.bind)
-        try:
-            property_obj = PropertyService.assign_coordinator(session, property_id, coordinator_id)
-            return {"message": "Coordinator assigned successfully", "property": property_obj}
-        finally:
-            session.close()
+        success = await PropertyService.delete_property_profile(db, property_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property profile not found"
+            )
+        return {"status": "success", "message": "Property profile deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to assign coordinator: {str(e)}"
+            detail=f"Failed to delete property profile: {str(e)}"
+        )
+
+
+@router.post("/search", response_model=PropertySearchResponse)
+async def search_properties(
+    search_request: PropertySearchRequest,
+    db: Session = Depends(get_sync_db)
+):
+    """Search properties with pagination and filters"""
+    try:
+        result = PropertyService.search_properties(db, search_request)
+        
+        return PropertySearchResponse(
+            data=result["properties"],
+            pagination=result["pagination"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search properties: {str(e)}"
+        )
+
+
+@router.patch("/{property_id}/status")
+async def update_property_status(
+    property_id: int,
+    status_update: PropertyStatusUpdate,
+    db: Session = Depends(get_sync_db)
+):
+    """Update property status (ACTIVE, INACTIVE, BLOCKED, DELETED)"""
+    try:
+        new_status = status_update.status
+        
+        # Update property status based on the new status
+        if new_status == PropertyStatus.ACTIVE:
+            updated_property = PropertyService.activate_property(db, property_id)
+        elif new_status == PropertyStatus.INACTIVE:
+            updated_property = PropertyService.deactivate_property(db, property_id)
+        elif new_status == PropertyStatus.BLOCKED:
+            updated_property = PropertyService.block_property(db, property_id)
+        elif new_status == PropertyStatus.DELETED:
+            updated_property = PropertyService.soft_delete_property(db, property_id)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid status value"
+            )
+        
+        if not updated_property:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+        
+        status_messages = {
+            PropertyStatus.ACTIVE: "Property activated successfully",
+            PropertyStatus.INACTIVE: "Property deactivated successfully",
+            PropertyStatus.BLOCKED: "Property blocked successfully",
+            PropertyStatus.DELETED: "Property deleted successfully"
+        }
+        
+        return {
+            "status": "success", 
+            "data": {
+                "message": status_messages[new_status],
+                "property": updated_property
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update property status: {str(e)}"
         ) 

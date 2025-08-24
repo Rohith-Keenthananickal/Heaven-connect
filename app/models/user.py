@@ -18,6 +18,12 @@ class UserType(str, enum.Enum):
     HOST = "HOST"
 
 
+class UserStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    BLOCKED = "BLOCKED"
+    DELETED = "DELETED"
+
+
 class User(Base):
     __tablename__ = "users"
     
@@ -30,7 +36,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     dob: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
     profile_image: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    status: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[UserStatus] = mapped_column(Enum(UserStatus), default=UserStatus.ACTIVE, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

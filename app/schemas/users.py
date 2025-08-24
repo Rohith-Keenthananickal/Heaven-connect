@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
 from datetime import datetime, date
-from app.models.user import AuthProvider, UserType
+from app.models.user import AuthProvider, UserType, UserStatus
 
 
 class UserBase(BaseModel):
@@ -12,7 +12,7 @@ class UserBase(BaseModel):
     full_name: str = Field(..., min_length=1, max_length=200)
     dob: Optional[date] = None
     profile_image: Optional[str] = Field(None, max_length=500)
-    status: bool = True
+    status: UserStatus = UserStatus.ACTIVE
 
 
 class UserCreate(UserBase):
@@ -27,11 +27,23 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, min_length=1, max_length=200)
     dob: Optional[date] = None
     profile_image: Optional[str] = Field(None, max_length=500)
-    status: Optional[bool] = None
+    status: Optional[UserStatus] = None
 
 
-class UserResponse(UserBase):
+class UserStatusUpdate(BaseModel):
+    status: UserStatus = Field(..., description="New user status (ACTIVE, BLOCKED, DELETED)")
+
+
+class UserResponse(BaseModel):
     id: int
+    auth_provider: AuthProvider
+    user_type: UserType
+    email: Optional[str]
+    phone_number: Optional[str]
+    full_name: str
+    dob: Optional[date]
+    profile_image: Optional[str]
+    status: UserStatus
     created_at: datetime
     updated_at: datetime
     
@@ -46,8 +58,40 @@ class UserListResponse(BaseModel):
     email: Optional[str]
     phone_number: Optional[str]
     full_name: str
-    status: bool
+    dob: Optional[date]
+    profile_image: Optional[str]
+    status: UserStatus
     created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class DateFilter(BaseModel):
+    from_date: Optional[int] = Field(None, description="From date in milliseconds")
+    to_date: Optional[int] = Field(None, description="To date in milliseconds")
+
+
+class UserSearchRequest(BaseModel):
+    user_type: Optional[List[UserType]] = Field(None, description="Filter by user types (array)")
+    page: int = Field(1, ge=1, description="Page number (1-based)")
+    search_query: Optional[str] = Field(None, description="Search query for name, email, or phone")
+    date_filter: Optional[DateFilter] = Field(None, description="Date range filter for created_at")
+    limit: int = Field(20, ge=1, le=100, description="Number of items per page")
+    status: Optional[List[UserStatus]] = Field(None, description="Filter by user statuses (array)")
+
+
+class PaginationInfo(BaseModel):
+    page: int
+    limit: int
+    total: int
+    total_pages: int
+    has_next: bool
+    has_prev: bool
+
+
+class UserSearchResponse(BaseModel):
+    status: str = "success"
+    data: List[UserListResponse]
+    pagination: PaginationInfo

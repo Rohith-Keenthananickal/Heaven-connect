@@ -11,6 +11,7 @@ from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.otp_verifications import router as otp_router
 from app.routers.properties import router as properties_router
+from app.routers.property_types import router as property_types_router
 from app.routers.rooms import router as rooms_router
 from app.routers.facilities import router as facilities_router
 from app.routers.property_photos import router as property_photos_router
@@ -52,6 +53,7 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(otp_router, prefix="/api/v1")
 app.include_router(properties_router, prefix="/api/v1")
+app.include_router(property_types_router, prefix="/api/v1")
 app.include_router(rooms_router, prefix="/api/v1")
 app.include_router(facilities_router, prefix="/api/v1")
 app.include_router(property_photos_router, prefix="/api/v1")
@@ -99,9 +101,25 @@ async def startup_event():
         except Exception as e:
             print(f"Warning: Could not connect to database: {e}")
             print("Please ensure MySQL is running and update your .env file with correct database credentials")
+    print("Server starting...")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Application shutdown event"""
     print("Shutting down Heaven Connect API")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"Environment: {settings.ENVIRONMENT}")
+    print(f"Debug mode: {settings.DEBUG}")
+    print("Server starting...")
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level="info"
+    )
