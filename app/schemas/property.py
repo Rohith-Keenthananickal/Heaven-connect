@@ -52,6 +52,8 @@ class PropertyBase(BaseModel):
     status: PropertyStatus = Field(PropertyStatus.ACTIVE, description="Property status")
     progress_step: int = Field(1, ge=1, le=10, description="Current progress step")
     is_verified: bool = Field(False, description="Whether the property is verified")
+    cover_image_url: Optional[str] = Field(None, max_length=500, description="URL of the property cover image")
+    additional_images: Optional[List[str]] = Field([], max_items=20, description="List of URLs for additional property images")
 
 
 class PropertyCreate(PropertyBase):
@@ -71,6 +73,8 @@ class PropertyProfileCreate(BaseModel):
     status: PropertyStatus = PropertyStatus.ACTIVE
     progress_step: int = Field(1, ge=1, le=9)
     is_verified: bool = False
+    cover_image_url: Optional[str] = Field(None, max_length=500, description="URL of the property cover image")
+    additional_images: Optional[List[str]] = Field([], max_items=20, description="List of URLs for additional property images")
 
 
 class PropertyProfileResponse(BaseModel):
@@ -84,6 +88,8 @@ class PropertyProfileResponse(BaseModel):
     status: PropertyStatus
     progress_step: int
     is_verified: bool
+    cover_image_url: Optional[str]
+    additional_images: Optional[List[str]]
     created_at: datetime
     updated_at: datetime
 
@@ -107,6 +113,8 @@ class PropertyResponse(BaseModel):
     status: PropertyStatus
     progress_step: int
     is_verified: bool
+    cover_image_url: Optional[str]
+    additional_images: Optional[List[str]]
     created_at: datetime
     updated_at: datetime
 
@@ -134,6 +142,8 @@ class PropertyProfileUpdate(BaseModel):
     status: Optional[PropertyStatus] = None
     progress_step: Optional[int] = Field(None, ge=1, le=9)
     is_verified: Optional[bool] = None
+    cover_image_url: Optional[str] = Field(None, max_length=500, description="URL of the property cover image")
+    additional_images: Optional[List[str]] = Field(None, max_items=20, description="List of URLs for additional property images")
 
 
 class PropertyDocumentsCreate(BaseModel):
