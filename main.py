@@ -18,6 +18,9 @@ from app.routers.property_photos import router as property_photos_router
 from app.routers.location import router as location_router
 from app.routers.availability import router as availability_router
 from app.routers.property_agreements import router as property_agreements_router
+from app.routers.images import router as images_router
+from app.routers.districts import router as districts_router
+from app.routers.grama_panchayats import router as grama_panchayats_router
 
 # Note: Database tables will be created via startup event for async compatibility
 
@@ -60,6 +63,9 @@ app.include_router(property_photos_router, prefix="/api/v1")
 app.include_router(location_router, prefix="/api/v1")
 app.include_router(availability_router, prefix="/api/v1")
 app.include_router(property_agreements_router, prefix="/api/v1")
+app.include_router(images_router, prefix="/api/v1")
+app.include_router(districts_router, prefix="/api/v1")
+app.include_router(grama_panchayats_router, prefix="/api/v1")
 
 
 @app.get("/")

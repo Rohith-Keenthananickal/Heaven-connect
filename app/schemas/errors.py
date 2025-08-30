@@ -96,6 +96,14 @@ class ErrorMessages:
     INVALID_FILE_TYPE = "Invalid file type"
     FILE_UPLOAD_FAILED = "File upload failed"
     
+    # Image-related errors
+    INVALID_IMAGE_TYPE = "Invalid image type"
+    INVALID_FILE_FORMAT = "Invalid file format"
+    INVALID_FILENAME = "Invalid filename"
+    IMAGE_UPLOAD_FAILED = "Image upload failed"
+    IMAGE_PROCESSING_FAILED = "Image processing failed"
+    IMAGE_DELETION_FAILED = "Image deletion failed"
+    
     # Database errors
     DATABASE_CONNECTION_ERROR = "Database connection error"
     DATABASE_QUERY_ERROR = "Database query error"
@@ -104,6 +112,28 @@ class ErrorMessages:
     OTP_EXPIRED = "OTP has expired"
     OTP_INVALID = "Invalid OTP"
     OTP_ALREADY_USED = "OTP has already been used"
+    
+    # Area Coordinator errors
+    AREA_COORDINATOR_NOT_FOUND = "Area coordinator not found"
+    ALREADY_APPROVED = "Already approved"
+    ALREADY_REJECTED = "Already rejected"
+    APPROVAL_FAILED = "Approval failed"
+    REJECTION_FAILED = "Rejection failed"
+    
+    # Bank Details errors
+    BANK_DETAILS_ALREADY_EXISTS = "Bank details already exist"
+    BANK_DETAILS_NOT_FOUND = "Bank details not found"
+    BANK_DETAILS_CREATION_FAILED = "Bank details creation failed"
+    BANK_DETAILS_UPDATE_FAILED = "Bank details update failed"
+    BANK_DETAILS_VERIFICATION_FAILED = "Bank details verification failed"
+    
+    # Profile errors
+    PROFILE_NOT_FOUND = "Profile not found"
+    PROFILE_UPDATE_FAILED = "Profile update failed"
+    INVALID_USER_TYPE = "Invalid user type"
+    
+    # Search errors
+    SEARCH_FAILED = "Search operation failed"
 
 
 # Common error codes
@@ -136,6 +166,14 @@ class ErrorCodes:
     INVALID_FILE_TYPE = "INVALID_FILE_TYPE"
     FILE_UPLOAD_FAILED = "FILE_UPLOAD_FAILED"
     
+    # Image-related errors
+    INVALID_IMAGE_TYPE = "INVALID_IMAGE_TYPE"
+    INVALID_FILE_FORMAT = "INVALID_FILE_FORMAT"
+    INVALID_FILENAME = "INVALID_FILENAME"
+    IMAGE_UPLOAD_FAILED = "IMAGE_UPLOAD_FAILED"
+    IMAGE_PROCESSING_FAILED = "IMAGE_PROCESSING_FAILED"
+    IMAGE_DELETION_FAILED = "IMAGE_DELETION_FAILED"
+    
     # Database errors
     DATABASE_CONNECTION_ERROR = "DATABASE_CONNECTION_ERROR"
     DATABASE_QUERY_ERROR = "DATABASE_QUERY_ERROR"
@@ -144,3 +182,25 @@ class ErrorCodes:
     OTP_EXPIRED = "OTP_EXPIRED"
     OTP_INVALID = "OTP_INVALID"
     OTP_ALREADY_USED = "OTP_ALREADY_USED"
+    
+    # Area Coordinator errors
+    AREA_COORDINATOR_NOT_FOUND = "AREA_COORDINATOR_NOT_FOUND"
+    ALREADY_APPROVED = "ALREADY_APPROVED"
+    ALREADY_REJECTED = "ALREADY_REJECTED"
+    APPROVAL_FAILED = "APPROVAL_FAILED"
+    REJECTION_FAILED = "REJECTION_FAILED"
+    
+    # Bank Details errors
+    BANK_DETAILS_ALREADY_EXISTS = "BANK_DETAILS_ALREADY_EXISTS"
+    BANK_DETAILS_NOT_FOUND = "BANK_DETAILS_NOT_FOUND"
+    BANK_DETAILS_CREATION_FAILED = "BANK_DETAILS_CREATION_FAILED"
+    BANK_DETAILS_UPDATE_FAILED = "BANK_DETAILS_UPDATE_FAILED"
+    BANK_DETAILS_VERIFICATION_FAILED = "BANK_DETAILS_VERIFICATION_FAILED"
+    
+    # Profile errors
+    PROFILE_NOT_FOUND = "PROFILE_NOT_FOUND"
+    PROFILE_UPDATE_FAILED = "PROFILE_UPDATE_FAILED"
+    INVALID_USER_TYPE = "INVALID_USER_TYPE"
+    
+    # Search errors
+    SEARCH_FAILED = "SEARCH_FAILED"

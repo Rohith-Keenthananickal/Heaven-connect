@@ -7,6 +7,8 @@ from .property_photos import router as property_photos_router
 from .location import router as location_router
 from .availability import router as availability_router
 from .property_agreements import router as property_agreements_router
+from .districts import router as districts_router
+from .grama_panchayats import router as grama_panchayats_router
 
 __all__ = [
     "users_router",
@@ -17,5 +19,7 @@ __all__ = [
     "property_photos_router",
     "location_router",
     "availability_router",
-    "property_agreements_router"
+    "property_agreements_router",
+    "districts_router",
+    "grama_panchayats_router"
 ]

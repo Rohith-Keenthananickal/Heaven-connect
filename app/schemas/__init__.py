@@ -1,5 +1,7 @@
 from .user import *
 from .property import *
+from .districts import *
+from .grama_panchayats import *
 from .errors import (
     ErrorResponse, 
     ValidationErrorResponse, 
@@ -35,6 +37,20 @@ __all__ = [
     "PropertyOnboardingStatus",
     "PropertyAgreementUpdate",
     "PropertyAgreementListResponse",
+    
+    # District schemas
+    "DistrictCreate",
+    "DistrictUpdate",
+    "DistrictResponse",
+    "DistrictListResponse",
+    "DistrictWithPanchayatsResponse",
+    
+    # Grama Panchayat schemas
+    "GramaPanchayatCreate",
+    "GramaPanchayatUpdate",
+    "GramaPanchayatResponse",
+    "GramaPanchayatListResponse",
+    "GramaPanchayatWithDistrictResponse",
     
     # Error schemas
     "ErrorResponse",
