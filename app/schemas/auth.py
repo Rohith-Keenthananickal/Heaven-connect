@@ -18,9 +18,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int
-    user_id: int
-    user_type: str
-    full_name: str
+    user: dict = Field(..., description="Complete user data including profile information")
 
 
 class LoginResponse(BaseModel):

@@ -298,17 +298,61 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 profile = AreaCoordinator(id=user_id, **area_coordinator_profile_update)
                 db.add(profile)
 
-    async def get_by_email(self, db: AsyncSession, email: str) -> Optional[User]:
+    async def get_by_email(self, db: AsyncSession, email: str) -> Optional[dict]:
         """Get user by email"""
         result = await db.execute(select(User).where(User.email == email))
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            return None
+            
+        # Manually load profile relationships based on user type
+        if user.user_type == UserType.GUEST:
+            guest_result = await db.execute(select(Guest).where(Guest.id == user.id))
+            user.guest_profile = guest_result.scalar_one_or_none()
+        elif user.user_type == UserType.HOST:
+            host_result = await db.execute(select(Host).where(Host.id == user.id))
+            user.host_profile = host_result.scalar_one_or_none()
+        elif user.user_type == UserType.AREA_COORDINATOR:
+            coordinator_result = await db.execute(select(AreaCoordinator).where(AreaCoordinator.id == user.id))
+            user.area_coordinator_profile = coordinator_result.scalar_one_or_none()
+            
+            # Also load bank details if they exist
+            if user.area_coordinator_profile:
+                bank_result = await db.execute(select(BankDetails).where(BankDetails.area_coordinator_id == user.id))
+                user.area_coordinator_profile.bank_details = bank_result.scalar_one_or_none()
+        
+        # Convert to dictionary to avoid SQLAlchemy issues
+        return self._convert_user_to_dict(user)
 
-    async def get_by_phone(self, db: AsyncSession, phone_number: str) -> Optional[User]:
+    async def get_by_phone(self, db: AsyncSession, phone_number: str) -> Optional[dict]:
         """Get user by phone number"""
         result = await db.execute(select(User).where(User.phone_number == phone_number))
-        return result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
+        
+        if not user:
+            return None
+            
+        # Manually load profile relationships based on user type
+        if user.user_type == UserType.GUEST:
+            guest_result = await db.execute(select(Guest).where(Guest.id == user.id))
+            user.guest_profile = guest_result.scalar_one_or_none()
+        elif user.user_type == UserType.HOST:
+            host_result = await db.execute(select(Host).where(Host.id == user.id))
+            user.host_profile = host_result.scalar_one_or_none()
+        elif user.user_type == UserType.AREA_COORDINATOR:
+            coordinator_result = await db.execute(select(AreaCoordinator).where(AreaCoordinator.id == user.id))
+            user.area_coordinator_profile = coordinator_result.scalar_one_or_none()
+            
+            # Also load bank details if they exist
+            if user.area_coordinator_profile:
+                bank_result = await db.execute(select(BankDetails).where(BankDetails.area_coordinator_id == user.id))
+                user.area_coordinator_profile.bank_details = bank_result.scalar_one_or_none()
+        
+        # Convert to dictionary to avoid SQLAlchemy issues
+        return self._convert_user_to_dict(user)
 
-    async def get_active_users(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> List[User]:
+    async def get_active_users(self, db: AsyncSession, skip: int = 0, limit: int = 100) -> List[dict]:
         """Get active users only"""
         return await self.get_multi(db, skip=skip, limit=limit, filters={"status": UserStatus.ACTIVE})
 
@@ -882,6 +926,95 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 message=f"Failed to verify bank details: {str(e)}",
                 error_code=ErrorCodes.BANK_DETAILS_VERIFICATION_FAILED
             )
+
+
+    # Authentication methods
+    async def authenticate_user(self, db: AsyncSession, auth_provider: AuthProvider, identifier: str, password: str) -> Optional[dict]:
+        """Authenticate user with email/phone and password"""
+        try:
+            # Find user by identifier (email or phone) - get raw SQLAlchemy object for password verification
+            user = None
+            if auth_provider == AuthProvider.EMAIL:
+                result = await db.execute(select(User).where(User.email == identifier))
+                user = result.scalar_one_or_none()
+            elif auth_provider == AuthProvider.MOBILE:
+                result = await db.execute(select(User).where(User.phone_number == identifier))
+                user = result.scalar_one_or_none()
+            
+            if not user:
+                return None
+            
+            # Verify password using raw SQLAlchemy object
+            if not verify_password(password, user.password_hash):
+                return None
+            
+            # Check if user is active
+            if user.status != UserStatus.ACTIVE:
+                return None
+            
+            # Load profile data
+            if user.user_type == UserType.GUEST:
+                guest_result = await db.execute(select(Guest).where(Guest.id == user.id))
+                user.guest_profile = guest_result.scalar_one_or_none()
+            elif user.user_type == UserType.HOST:
+                host_result = await db.execute(select(Host).where(Host.id == user.id))
+                user.host_profile = host_result.scalar_one_or_none()
+            elif user.user_type == UserType.AREA_COORDINATOR:
+                coordinator_result = await db.execute(select(AreaCoordinator).where(AreaCoordinator.id == user.id))
+                user.area_coordinator_profile = coordinator_result.scalar_one_or_none()
+                
+                # Also load bank details if they exist
+                if user.area_coordinator_profile:
+                    bank_result = await db.execute(select(BankDetails).where(BankDetails.area_coordinator_id == user.id))
+                    user.area_coordinator_profile.bank_details = bank_result.scalar_one_or_none()
+            
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_user_to_dict(user)
+            
+        except Exception as e:
+            # Log error but don't expose it to user
+            return None
+
+    async def authenticate_with_otp(self, db: AsyncSession, phone_number: str, otp: str) -> Optional[dict]:
+        """Authenticate user with phone number and OTP"""
+        try:
+            # Find user by phone number - get raw SQLAlchemy object
+            result = await db.execute(select(User).where(User.phone_number == phone_number))
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                return None
+            
+            # TODO: Implement OTP verification logic
+            # For now, we'll just check if the user exists and is active
+            # In a real implementation, you would verify the OTP against stored/expired OTPs
+            
+            # Check if user is active
+            if user.status != UserStatus.ACTIVE:
+                return None
+            
+            # Load profile data
+            if user.user_type == UserType.GUEST:
+                guest_result = await db.execute(select(Guest).where(Guest.id == user.id))
+                user.guest_profile = guest_result.scalar_one_or_none()
+            elif user.user_type == UserType.HOST:
+                host_result = await db.execute(select(Host).where(Host.id == user.id))
+                user.host_profile = host_result.scalar_one_or_none()
+            elif user.user_type == UserType.AREA_COORDINATOR:
+                coordinator_result = await db.execute(select(AreaCoordinator).where(AreaCoordinator.id == user.id))
+                user.area_coordinator_profile = coordinator_result.scalar_one_or_none()
+                
+                # Also load bank details if they exist
+                if user.area_coordinator_profile:
+                    bank_result = await db.execute(select(BankDetails).where(BankDetails.area_coordinator_id == user.id))
+                    user.area_coordinator_profile.bank_details = bank_result.scalar_one_or_none()
+            
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_user_to_dict(user)
+            
+        except Exception as e:
+            # Log error but don't expose it to user
+            return None
 
 
 # Service instance

@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
+import json
 from app.database import get_db
 from app.schemas.auth import (
     LoginRequest, 
@@ -14,7 +15,6 @@ from app.utils.auth import create_access_token
 from app.utils.error_handler import (
     create_http_exception,
     create_authentication_http_exception,
-    create_server_error_http_exception,
     extract_request_info
 )
 from app.models.user import AuthProvider, UserStatus
@@ -111,7 +111,7 @@ async def login(
                 trace_id=request_info["trace_id"]
             )
         
-        if not user.status == UserStatus.ACTIVE:
+        if not user["status"] == UserStatus.ACTIVE:
             raise create_authentication_http_exception(
                 message="User account is deactivated",
                 auth_type="account_status",
@@ -122,9 +122,9 @@ async def login(
         
         # Create access token
         token_data = {
-            "sub": str(user.id),
-            "user_type": user.user_type.value,
-            "auth_provider": user.auth_provider.value
+            "sub": str(user["id"]),
+            "user_type": user["user_type"].value,
+            "auth_provider": user["auth_provider"].value
         }
         
         access_token = create_access_token(
@@ -135,9 +135,7 @@ async def login(
         token_response = TokenResponse(
             access_token=access_token,
             expires_in=30 * 60,  # 30 minutes in seconds
-            user_id=user.id,
-            user_type=user.user_type.value,
-            full_name=user.full_name
+            user=user
         )
         
         return LoginResponse(data=token_response)
@@ -145,9 +143,10 @@ async def login(
     except HTTPException:
         raise
     except Exception as e:
-        raise create_server_error_http_exception(
+        raise create_http_exception(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             message=f"Login failed: {str(e)}",
-            component="authentication",
+            error_code=ErrorCodes.AUTHENTICATION_FAILED,
             path=request_info["path"],
             method=request_info["method"],
             trace_id=request_info["trace_id"]
@@ -156,11 +155,45 @@ async def login(
 
 @router.post("/login/email", response_model=LoginResponse)
 async def login_with_email(
+    request: Request,
     login_data: EmailLoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """Login user with email and password"""
     try:
+        # Log request details for debugging
+        print(f"DEBUG: Login request received for email: {login_data.email}")
+        print(f"DEBUG: Request headers: {dict(request.headers)}")
+        print(f"DEBUG: Content-Type: {request.headers.get('content-type', 'Not set')}")
+        
+        # Check request body
+        try:
+            body = await request.body()
+            print(f"DEBUG: Request body size: {len(body) if body else 0}")
+            if body:
+                print(f"DEBUG: Request body preview: {body[:200]}")
+                try:
+                    # Try to parse as JSON to see if it's valid
+                    json_data = json.loads(body)
+                    print(f"DEBUG: JSON parsed successfully: {json_data}")
+                except json.JSONDecodeError as json_error:
+                    print(f"DEBUG: JSON decode error: {json_error}")
+                    print(f"DEBUG: Invalid JSON at position: {json_error.pos}")
+                    print(f"DEBUG: Invalid character: {body[json_error.pos:json_error.pos+10] if json_error.pos < len(body) else 'End of body'}")
+                    
+                    # Try to fix common JSON issues
+                    try:
+                        # Remove trailing commas
+                        fixed_body = body.decode('utf-8').replace(',}', '}').replace(',]', ']')
+                        json_data = json.loads(fixed_body)
+                        print(f"DEBUG: JSON fixed and parsed successfully: {json_data}")
+                    except:
+                        print("DEBUG: Could not fix JSON automatically")
+            else:
+                print("DEBUG: Request body is empty!")
+        except Exception as body_error:
+            print(f"DEBUG: Error reading request body: {body_error}")
+        
         user = await users_service.authenticate_user(
             db, 
             AuthProvider.EMAIL, 
@@ -174,7 +207,7 @@ async def login_with_email(
                 detail="Invalid email or password"
             )
         
-        if not user.status:
+        if not user["status"]:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is deactivated"
@@ -182,9 +215,9 @@ async def login_with_email(
         
         # Create access token
         token_data = {
-            "sub": str(user.id),
-            "user_type": user.user_type.value,
-            "auth_provider": user.auth_provider.value
+            "sub": str(user["id"]),
+            "user_type": user["user_type"].value,
+            "auth_provider": user["auth_provider"].value
         }
         
         access_token = create_access_token(
@@ -195,9 +228,7 @@ async def login_with_email(
         token_response = TokenResponse(
             access_token=access_token,
             expires_in=30 * 60,
-            user_id=user.id,
-            user_type=user.user_type.value,
-            full_name=user.full_name
+            user=user
         )
         
         return LoginResponse(data=token_response)
@@ -205,6 +236,9 @@ async def login_with_email(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"DEBUG: Login error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Email login failed: {str(e)}"
@@ -230,7 +264,7 @@ async def login_with_mobile(
                 detail="Invalid phone number or OTP"
             )
         
-        if not user.status:
+        if not user["status"]:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User account is deactivated"
@@ -238,9 +272,9 @@ async def login_with_mobile(
         
         # Create access token
         token_data = {
-            "sub": str(user.id),
-            "user_type": user.user_type.value,
-            "auth_provider": user.auth_provider.value
+            "sub": str(user["id"]),
+            "user_type": user["user_type"].value,
+            "auth_provider": user["auth_provider"].value
         }
         
         access_token = create_access_token(
@@ -251,9 +285,7 @@ async def login_with_mobile(
         token_response = TokenResponse(
             access_token=access_token,
             expires_in=30 * 60,
-            user_id=user.id,
-            user_type=user.user_type.value,
-            full_name=user.full_name
+            user=user
         )
         
         return LoginResponse(data=token_response)

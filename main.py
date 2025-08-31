@@ -5,6 +5,7 @@ import os
 from app.core.config import settings
 from app.database import Base, engine
 from app.middleware.error_handler import register_exception_handlers
+from app.middleware.json_fix import JSONFixMiddleware
 
 # Import all routers
 from app.routers.auth import router as auth_router
