@@ -2,6 +2,43 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from app.models.property import PropertyClassification, PropertyStatus, FacilityCategory, PhotoCategory
+from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
+
+
+# Specific Response Models for proper Swagger documentation
+class PropertyCreateAPIResponse(BaseModel):
+    """Response schema for property creation"""
+    status: str = "success"
+    data: 'PropertyProfileResponse'
+    message: str = "Property created successfully"
+
+
+class PropertyGetAPIResponse(BaseModel):
+    """Response schema for single property retrieval"""
+    status: str = "success"
+    data: 'PropertyProfileResponse'
+    message: str = "Property retrieved successfully"
+
+
+class PropertyUpdateAPIResponse(BaseModel):
+    """Response schema for property updates"""
+    status: str = "success"
+    data: 'PropertyProfileResponse'
+    message: str = "Property updated successfully"
+
+
+class PropertyDeleteAPIResponse(BaseModel):
+    """Response schema for property deletion"""
+    status: str = "success"
+    data: dict
+    message: str = "Property deleted successfully"
+
+
+class PropertyStatusUpdateAPIResponse(BaseModel):
+    """Response schema for property status updates"""
+    status: str = "success"
+    data: dict
+    message: str
 
 
 class PropertyTypeBase(BaseModel):

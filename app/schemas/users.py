@@ -2,6 +2,64 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Union
 from datetime import datetime, date
 from app.models.user import AuthProvider, UserType, UserStatus, ApprovalStatus
+from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
+
+
+# Specific Response Models for proper Swagger documentation
+class UserCreateAPIResponse(BaseModel):
+    """Response schema for user creation"""
+    status: str = "success"
+    data: 'UserResponse'
+    message: str = "User created successfully"
+
+
+class UserListAPIResponse(BaseModel):
+    """Response schema for user list endpoints"""
+    status: str = "success"
+    data: List['UserListResponse']
+    message: str = "Users retrieved successfully"
+
+
+class UserGetAPIResponse(BaseModel):
+    """Response schema for single user retrieval"""
+    status: str = "success"
+    data: 'UserResponse'
+    message: str = "User retrieved successfully"
+
+
+class UserUpdateAPIResponse(BaseModel):
+    """Response schema for user updates"""
+    status: str = "success"
+    data: 'UserResponse'
+    message: str = "User updated successfully"
+
+
+class UserStatusUpdateAPIResponse(BaseModel):
+    """Response schema for user status updates"""
+    status: str = "success"
+    data: dict
+    message: str
+
+
+class UserDeleteAPIResponse(BaseModel):
+    """Response schema for user deletion"""
+    status: str = "success"
+    data: dict
+    message: str = "User deleted successfully"
+
+
+class UserProfileGetAPIResponse(BaseModel):
+    """Response schema for user profile retrieval"""
+    status: str = "success"
+    data: dict
+    message: str
+
+
+class UserTypeListAPIResponse(BaseModel):
+    """Response schema for users by type"""
+    status: str = "success"
+    data: List['UserListResponse']
+    message: str
 
 
 # Profile-specific schemas
@@ -263,15 +321,6 @@ class UserSearchRequest(BaseModel):
     limit: int = Field(20, ge=1, le=100, description="Number of items per page")
     status: Optional[List[UserStatus]] = Field(None, description="Filter by user statuses (array)")
     approval_status: Optional[List[ApprovalStatus]] = Field(None, description="Filter area coordinators by approval status (array)")
-
-
-class PaginationInfo(BaseModel):
-    page: int
-    limit: int
-    total: int
-    total_pages: int
-    has_next: bool
-    has_prev: bool
 
 
 class UserSearchResponse(BaseModel):

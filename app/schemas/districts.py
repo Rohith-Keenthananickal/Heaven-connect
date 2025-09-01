@@ -1,6 +1,50 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
+
+
+# Specific Response Models for proper Swagger documentation
+class DistrictCreateAPIResponse(BaseModel):
+    """Response schema for district creation"""
+    status: str = "success"
+    data: 'DistrictResponse'
+    message: str = "District created successfully"
+
+
+class DistrictListAPIResponse(BaseModel):
+    """Response schema for district list endpoints"""
+    status: str = "success"
+    data: List['DistrictListResponse']
+    message: str = "Districts retrieved successfully"
+
+
+class DistrictGetAPIResponse(BaseModel):
+    """Response schema for single district retrieval"""
+    status: str = "success"
+    data: 'DistrictResponse'
+    message: str = "District retrieved successfully"
+
+
+class DistrictUpdateAPIResponse(BaseModel):
+    """Response schema for district updates"""
+    status: str = "success"
+    data: 'DistrictResponse'
+    message: str = "District updated successfully"
+
+
+class DistrictDeleteAPIResponse(BaseModel):
+    """Response schema for district deletion"""
+    status: str = "success"
+    data: dict
+    message: str = "District deleted successfully"
+
+
+class DistrictWithPanchayatsAPIResponse(BaseModel):
+    """Response schema for district with panchayats"""
+    status: str = "success"
+    data: 'DistrictWithPanchayatsResponse'
+    message: str = "District with panchayats retrieved successfully"
 
 
 class DistrictBase(BaseModel):

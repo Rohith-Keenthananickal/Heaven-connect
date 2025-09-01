@@ -6,7 +6,10 @@ from app.schemas.users import (
     UserCreate, UserUpdate, UserResponse, UserListResponse, UserSearchRequest, 
     UserSearchResponse, UserStatus, UserStatusUpdate, ProfileUpdateRequest, ProfileResponse,
     BankDetailsCreateRequest, BankDetailsUpdateRequest, BankDetailsResponseWrapper,
-    AreaCoordinatorApprovalRequest, AreaCoordinatorApprovalResponse
+    AreaCoordinatorApprovalRequest, AreaCoordinatorApprovalResponse,
+    UserCreateAPIResponse, UserListAPIResponse, UserGetAPIResponse, UserUpdateAPIResponse,
+    UserStatusUpdateAPIResponse, UserDeleteAPIResponse, UserProfileGetAPIResponse,
+    UserTypeListAPIResponse
 )
 from app.services.users_service import users_service
 
@@ -14,7 +17,7 @@ from app.services.users_service import users_service
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=UserCreateAPIResponse)
 async def create_user(
     user: UserCreate,
     db: AsyncSession = Depends(get_db)
@@ -22,7 +25,10 @@ async def create_user(
     """Create a new user with profile"""
     try:
         db_user = await users_service.create(db, obj_in=user)
-        return db_user
+        return UserCreateAPIResponse(
+            data=db_user,
+            message="User created successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -54,7 +60,7 @@ async def search_users(
         )
 
 
-@router.get("/", response_model=List[UserListResponse])
+@router.get("/", response_model=UserListAPIResponse)
 async def get_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -80,7 +86,10 @@ async def get_users(
         else:
             users = await users_service.get_multi(db, skip=skip, limit=limit)
         
-        return users
+        return UserListAPIResponse(
+            data=users,
+            message="Users retrieved successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -90,7 +99,7 @@ async def get_users(
         )
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserGetAPIResponse)
 async def get_user(
     user_id: int,
     db: AsyncSession = Depends(get_db)
@@ -103,7 +112,10 @@ async def get_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        return db_user
+        return UserGetAPIResponse(
+            data=db_user,
+            message="User retrieved successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -113,7 +125,7 @@ async def get_user(
         )
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserUpdateAPIResponse)
 async def update_user(
     user_id: int,
     user_update: UserUpdate,
@@ -123,7 +135,10 @@ async def update_user(
     try:
         db_user = await users_service.get_or_404(db, user_id, "User not found")
         updated_user = await users_service.update(db, db_obj=db_user, obj_in=user_update)
-        return updated_user
+        return UserUpdateAPIResponse(
+            data=updated_user,
+            message="User updated successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -163,7 +178,7 @@ async def update_user_profile(
         )
 
 
-@router.patch("/{user_id}/status")
+@router.patch("/{user_id}/status", response_model=UserStatusUpdateAPIResponse)
 async def update_user_status(
     user_id: int,
     status_update: UserStatusUpdate,
@@ -198,13 +213,13 @@ async def update_user_status(
             UserStatus.DELETED: "User deleted successfully"
         }
         
-        return {
-            "status": "success", 
-            "data": {
-                "message": status_messages[new_status],
-                "user": updated_user
-            }
-        }
+        return UserStatusUpdateAPIResponse(
+            data={
+                "user": updated_user,
+                "new_status": new_status.value
+            },
+            message=status_messages[new_status]
+        )
         
     except HTTPException:
         raise
@@ -215,7 +230,7 @@ async def update_user_status(
         )
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", response_model=UserDeleteAPIResponse)
 async def delete_user(
     user_id: int,
     db: AsyncSession = Depends(get_db)
@@ -228,7 +243,10 @@ async def delete_user(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        return {"status": "success", "data": {"message": "User deleted successfully", "user": deleted_user}}
+        return UserDeleteAPIResponse(
+            data={"user": deleted_user},
+            message="User deleted successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -239,7 +257,7 @@ async def delete_user(
 
 
 # Profile-specific endpoints
-@router.get("/{user_id}/profile")
+@router.get("/{user_id}/profile", response_model=UserProfileGetAPIResponse)
 async def get_user_profile(
     user_id: int,
     db: AsyncSession = Depends(get_db)
@@ -255,13 +273,25 @@ async def get_user_profile(
         
         # Return profile based on user type
         if db_user.user_type.value == "GUEST" and db_user.guest_profile:
-            return {"status": "success", "data": db_user.guest_profile, "type": "guest"}
+            return UserProfileGetAPIResponse(
+                data={"profile": db_user.guest_profile, "type": "guest"},
+                message="Guest profile retrieved successfully"
+            )
         elif db_user.user_type.value == "HOST" and db_user.host_profile:
-            return {"status": "success", "data": db_user.host_profile, "type": "host"}
+            return UserProfileGetAPIResponse(
+                data={"profile": db_user.host_profile, "type": "host"},
+                message="Host profile retrieved successfully"
+            )
         elif db_user.user_type.value == "AREA_COORDINATOR" and db_user.area_coordinator_profile:
-            return {"status": "success", "data": db_user.area_coordinator_profile, "type": "area_coordinator"}
+            return UserProfileGetAPIResponse(
+                data={"profile": db_user.area_coordinator_profile, "type": "area_coordinator"},
+                message="Area coordinator profile retrieved successfully"
+            )
         else:
-            return {"status": "success", "data": None, "type": "no_profile"}
+            return UserProfileGetAPIResponse(
+                data={"profile": None, "type": "no_profile"},
+                message="No profile found for user"
+            )
             
     except HTTPException:
         raise
@@ -272,7 +302,7 @@ async def get_user_profile(
         )
 
 
-@router.get("/types/{user_type}", response_model=List[UserListResponse])
+@router.get("/types/{user_type}", response_model=UserTypeListAPIResponse)
 async def get_users_by_type(
     user_type: str,
     skip: int = Query(0, ge=0),
@@ -285,7 +315,10 @@ async def get_users_by_type(
         try:
             user_type_enum = UserType(user_type)
             users = await users_service.get_users_by_type(db, user_type_enum, skip=skip, limit=limit)
-            return users
+            return UserTypeListAPIResponse(
+                data=users,
+                message=f"Users of type {user_type} retrieved successfully"
+            )
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

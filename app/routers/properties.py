@@ -5,7 +5,9 @@ from app.database import get_db, get_sync_db
 from app.schemas.property import (
     PropertyCreate, PropertyProfileCreate, PropertyProfileUpdate, 
     PropertyProfileResponse, PropertyResponse, PropertySearchRequest, 
-    PropertySearchResponse, PropertyStatusUpdate
+    PropertySearchResponse, PropertyStatusUpdate,
+    PropertyCreateAPIResponse, PropertyGetAPIResponse, PropertyUpdateAPIResponse,
+    PropertyDeleteAPIResponse, PropertyStatusUpdateAPIResponse
 )
 from app.services.property_service import PropertyService
 from app.utils.error_handler import create_server_error_http_exception
@@ -16,7 +18,7 @@ from typing import List, Optional
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
-@router.post("/profile", response_model=PropertyProfileResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/profile", response_model=PropertyCreateAPIResponse, status_code=status.HTTP_201_CREATED)
 async def create_property_profile(
     property_profile: PropertyProfileCreate,
     db: AsyncSession = Depends(get_db)
@@ -39,7 +41,10 @@ async def create_property_profile(
             property_profile.progress_step,
             property_profile.is_verified
         )
-        return db_property
+        return PropertyCreateAPIResponse(
+            data=db_property,
+            message="Property created successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -49,7 +54,7 @@ async def create_property_profile(
         )
 
 
-@router.get("/profile/{property_id}", response_model=PropertyProfileResponse)
+@router.get("/profile/{property_id}", response_model=PropertyGetAPIResponse)
 async def get_property_profile(
     property_id: int,
     db: AsyncSession = Depends(get_db)
@@ -62,7 +67,10 @@ async def get_property_profile(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Property profile not found"
             )
-        return db_property
+        return PropertyGetAPIResponse(
+            data=db_property,
+            message="Property retrieved successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -72,7 +80,7 @@ async def get_property_profile(
         )
 
 
-@router.put("/profile/{property_id}", response_model=PropertyProfileResponse)
+@router.put("/profile/{property_id}", response_model=PropertyUpdateAPIResponse)
 async def update_property_profile(
     property_id: int,
     property_update: PropertyProfileUpdate,
@@ -90,7 +98,10 @@ async def update_property_profile(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Property profile not found"
             )
-        return db_property
+        return PropertyUpdateAPIResponse(
+            data=db_property,
+            message="Property updated successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -100,7 +111,7 @@ async def update_property_profile(
         )
 
 
-@router.delete("/profile/{property_id}")
+@router.delete("/profile/{property_id}", response_model=PropertyDeleteAPIResponse)
 async def delete_property_profile(
     property_id: int,
     db: AsyncSession = Depends(get_db)
@@ -113,7 +124,10 @@ async def delete_property_profile(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Property profile not found"
             )
-        return {"status": "success", "message": "Property profile deleted successfully"}
+        return PropertyDeleteAPIResponse(
+            data={"property_id": property_id},
+            message="Property profile deleted successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -145,7 +159,7 @@ async def search_properties(
         )
 
 
-@router.patch("/{property_id}/status")
+@router.patch("/{property_id}/status", response_model=PropertyStatusUpdateAPIResponse)
 async def update_property_status(
     property_id: int,
     status_update: PropertyStatusUpdate,
@@ -183,13 +197,13 @@ async def update_property_status(
             PropertyStatus.DELETED: "Property deleted successfully"
         }
         
-        return {
-            "status": "success", 
-            "data": {
-                "message": status_messages[new_status],
-                "property": updated_property
-            }
-        }
+        return PropertyStatusUpdateAPIResponse(
+            data={
+                "property": updated_property,
+                "new_status": new_status.value
+            },
+            message=status_messages[new_status]
+        )
         
     except HTTPException:
         raise

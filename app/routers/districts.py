@@ -7,14 +7,16 @@ from app.schemas.districts import (
     DistrictUpdate, 
     DistrictResponse, 
     DistrictListResponse,
-    DistrictWithPanchayatsResponse
+    DistrictWithPanchayatsResponse,
+    DistrictCreateAPIResponse, DistrictListAPIResponse, DistrictGetAPIResponse,
+    DistrictUpdateAPIResponse, DistrictDeleteAPIResponse, DistrictWithPanchayatsAPIResponse
 )
 from app.services.districts_service import district_service
 
 router = APIRouter(prefix="/districts", tags=["Districts"])
 
 
-@router.post("/", response_model=DistrictResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=DistrictCreateAPIResponse, status_code=status.HTTP_201_CREATED)
 async def create_district(
     district: DistrictCreate, 
     db: AsyncSession = Depends(get_db)
@@ -30,7 +32,10 @@ async def create_district(
             )
         
         db_district = await district_service.create(db, obj_in=district)
-        return db_district
+        return DistrictCreateAPIResponse(
+            data=db_district,
+            message="District created successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -40,7 +45,7 @@ async def create_district(
         )
 
 
-@router.get("/", response_model=List[DistrictListResponse])
+@router.get("/", response_model=DistrictListAPIResponse)
 async def get_districts(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Number of records to return"),
@@ -60,7 +65,10 @@ async def get_districts(
         else:
             districts = await district_service.get_multi(db, skip=skip, limit=limit)
         
-        return districts
+        return DistrictListAPIResponse(
+            data=districts,
+            message="Districts retrieved successfully"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
@@ -68,7 +76,7 @@ async def get_districts(
         )
 
 
-@router.get("/{district_id}", response_model=DistrictResponse)
+@router.get("/{district_id}", response_model=DistrictGetAPIResponse)
 async def get_district(
     district_id: int, 
     db: AsyncSession = Depends(get_db)
@@ -76,7 +84,10 @@ async def get_district(
     """Get a specific district by ID"""
     try:
         db_district = await district_service.get_or_404(db, district_id, "District not found")
-        return db_district
+        return DistrictGetAPIResponse(
+            data=db_district,
+            message="District retrieved successfully"
+        )
     except HTTPException:
         raise
     except Exception as e:
