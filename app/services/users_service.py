@@ -216,6 +216,58 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         
         return user_dict
 
+    def _convert_area_coordinator_to_dict(self, coordinator: AreaCoordinator) -> dict:
+        """Convert AreaCoordinator object to clean dictionary to avoid SQLAlchemy issues"""
+        coordinator_dict = {
+            "id": coordinator.id,
+            "region": coordinator.region,
+            "assigned_properties": coordinator.assigned_properties,
+            "approval_status": coordinator.approval_status,
+            "approval_date": coordinator.approval_date,
+            "approved_by": coordinator.approved_by,
+            "rejection_reason": coordinator.rejection_reason,
+            "id_proof_type": coordinator.id_proof_type,
+            "id_proof_number": coordinator.id_proof_number,
+            "pancard_number": coordinator.pancard_number,
+            "passport_size_photo": coordinator.passport_size_photo,
+            "id_proof_document": coordinator.id_proof_document,
+            "address_proof_document": coordinator.address_proof_document,
+            "district": coordinator.district,
+            "panchayat": coordinator.panchayat,
+            "address_line1": coordinator.address_line1,
+            "address_line2": coordinator.address_line2,
+            "city": coordinator.city,
+            "state": coordinator.state,
+            "postal_code": coordinator.postal_code,
+            "latitude": coordinator.latitude,
+            "longitude": coordinator.longitude,
+            "emergency_contact": coordinator.emergency_contact,
+            "emergency_contact_name": coordinator.emergency_contact_name,
+            "emergency_contact_relationship": coordinator.emergency_contact_relationship,
+            "bank_details": None
+        }
+        
+        # Add bank details if they exist
+        if coordinator.bank_details:
+            coordinator_dict["bank_details"] = {
+                "id": coordinator.bank_details.id,
+                "area_coordinator_id": coordinator.bank_details.area_coordinator_id,
+                "bank_name": coordinator.bank_details.bank_name,
+                "account_holder_name": coordinator.bank_details.account_holder_name,
+                "account_number": coordinator.bank_details.account_number,
+                "ifsc_code": coordinator.bank_details.ifsc_code,
+                "branch_name": coordinator.bank_details.branch_name,
+                "branch_code": coordinator.bank_details.branch_code,
+                "account_type": coordinator.bank_details.account_type,
+                "is_verified": coordinator.bank_details.is_verified,
+                "bank_passbook_image": coordinator.bank_details.bank_passbook_image,
+                "cancelled_cheque_image": coordinator.bank_details.cancelled_cheque_image,
+                "created_at": coordinator.bank_details.created_at,
+                "updated_at": coordinator.bank_details.updated_at
+            }
+        
+        return coordinator_dict
+
     async def _validate_profile_data(self, user_type: UserType, guest_profile: dict, host_profile: dict, area_coordinator_profile: dict):
         """Validate that profile data is provided for the given user_type"""
         if user_type == UserType.GUEST and not guest_profile:
@@ -740,7 +792,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         return self._convert_user_to_dict(user)
 
     # Area Coordinator Approval methods
-    async def approve_area_coordinator(self, db: AsyncSession, coordinator_id: int, admin_user_id: int) -> AreaCoordinator:
+    async def approve_area_coordinator(self, db: AsyncSession, coordinator_id: int, admin_user_id: int) -> dict:
         """Approve an area coordinator"""
         try:
             # Get the area coordinator profile
@@ -771,7 +823,8 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             await db.commit()
             await db.refresh(coordinator)
             
-            return coordinator
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_area_coordinator_to_dict(coordinator)
             
         except HTTPException:
             raise
@@ -782,7 +835,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 error_code=ErrorCodes.APPROVAL_FAILED
             )
 
-    async def reject_area_coordinator(self, db: AsyncSession, coordinator_id: int, admin_user_id: int, rejection_reason: str) -> AreaCoordinator:
+    async def reject_area_coordinator(self, db: AsyncSession, coordinator_id: int, admin_user_id: int, rejection_reason: str) -> dict:
         """Reject an area coordinator"""
         try:
             # Get the area coordinator profile
@@ -813,7 +866,8 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             await db.commit()
             await db.refresh(coordinator)
             
-            return coordinator
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_area_coordinator_to_dict(coordinator)
             
         except HTTPException:
             raise
