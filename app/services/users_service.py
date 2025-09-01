@@ -216,7 +216,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         
         return user_dict
 
-    def _convert_area_coordinator_to_dict(self, coordinator: AreaCoordinator) -> dict:
+    def _convert_area_coordinator_to_dict(self, coordinator: AreaCoordinator, bank_details: Optional[BankDetails] = None) -> dict:
         """Convert AreaCoordinator object to clean dictionary to avoid SQLAlchemy issues"""
         coordinator_dict = {
             "id": coordinator.id,
@@ -247,23 +247,23 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             "bank_details": None
         }
         
-        # Add bank details if they exist
-        if coordinator.bank_details:
+        # Add bank details if they exist (passed as parameter to avoid relationship access)
+        if bank_details:
             coordinator_dict["bank_details"] = {
-                "id": coordinator.bank_details.id,
-                "area_coordinator_id": coordinator.bank_details.area_coordinator_id,
-                "bank_name": coordinator.bank_details.bank_name,
-                "account_holder_name": coordinator.bank_details.account_holder_name,
-                "account_number": coordinator.bank_details.account_number,
-                "ifsc_code": coordinator.bank_details.ifsc_code,
-                "branch_name": coordinator.bank_details.branch_name,
-                "branch_code": coordinator.bank_details.branch_code,
-                "account_type": coordinator.bank_details.account_type,
-                "is_verified": coordinator.bank_details.is_verified,
-                "bank_passbook_image": coordinator.bank_details.bank_passbook_image,
-                "cancelled_cheque_image": coordinator.bank_details.cancelled_cheque_image,
-                "created_at": coordinator.bank_details.created_at,
-                "updated_at": coordinator.bank_details.updated_at
+                "id": bank_details.id,
+                "area_coordinator_id": bank_details.area_coordinator_id,
+                "bank_name": bank_details.bank_name,
+                "account_holder_name": bank_details.account_holder_name,
+                "account_number": bank_details.account_number,
+                "ifsc_code": bank_details.ifsc_code,
+                "branch_name": bank_details.branch_name,
+                "branch_code": bank_details.branch_code,
+                "account_type": bank_details.account_type,
+                "is_verified": bank_details.is_verified,
+                "bank_passbook_image": bank_details.bank_passbook_image,
+                "cancelled_cheque_image": bank_details.cancelled_cheque_image,
+                "created_at": bank_details.created_at,
+                "updated_at": bank_details.updated_at
             }
         
         return coordinator_dict
@@ -823,8 +823,14 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             await db.commit()
             await db.refresh(coordinator)
             
+            # Load bank details explicitly to avoid relationship access issues
+            bank_details = await db.execute(
+                select(BankDetails).where(BankDetails.area_coordinator_id == coordinator.id)
+            )
+            bank_details = bank_details.scalar_one_or_none()
+            
             # Convert to dictionary to avoid SQLAlchemy issues
-            return self._convert_area_coordinator_to_dict(coordinator)
+            return self._convert_area_coordinator_to_dict(coordinator, bank_details)
             
         except HTTPException:
             raise
@@ -866,8 +872,14 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             await db.commit()
             await db.refresh(coordinator)
             
+            # Load bank details explicitly to avoid relationship access issues
+            bank_details = await db.execute(
+                select(BankDetails).where(BankDetails.area_coordinator_id == coordinator.id)
+            )
+            bank_details = bank_details.scalar_one_or_none()
+            
             # Convert to dictionary to avoid SQLAlchemy issues
-            return self._convert_area_coordinator_to_dict(coordinator)
+            return self._convert_area_coordinator_to_dict(coordinator, bank_details)
             
         except HTTPException:
             raise
@@ -1069,6 +1081,155 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         except Exception as e:
             # Log error but don't expose it to user
             return None
+
+    # Bank Details methods
+    async def create_bank_details(self, db: AsyncSession, area_coordinator_id: int, bank_details_data: dict) -> dict:
+        """Create bank details for an area coordinator"""
+        try:
+            # Check if bank details already exist for this coordinator
+            existing_bank_details = await db.execute(
+                select(BankDetails).where(BankDetails.area_coordinator_id == area_coordinator_id)
+            )
+            existing_bank_details = existing_bank_details.scalar_one_or_none()
+            
+            if existing_bank_details:
+                raise create_http_exception(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message="Bank details already exist for this area coordinator",
+                    error_code=ErrorCodes.BANK_DETAILS_ALREADY_EXISTS
+                )
+            
+            # Create new bank details
+            bank_details = BankDetails(
+                area_coordinator_id=area_coordinator_id,
+                **bank_details_data
+            )
+            
+            db.add(bank_details)
+            await db.commit()
+            await db.refresh(bank_details)
+            
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_bank_details_to_dict(bank_details)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to create bank details: {str(e)}",
+                error_code=ErrorCodes.BANK_DETAILS_CREATION_FAILED
+            )
+
+    async def get_bank_details(self, db: AsyncSession, area_coordinator_id: int) -> Optional[dict]:
+        """Get bank details for an area coordinator"""
+        try:
+            bank_details = await db.execute(
+                select(BankDetails).where(BankDetails.area_coordinator_id == area_coordinator_id)
+            )
+            bank_details = bank_details.scalar_one_or_none()
+            
+            if not bank_details:
+                return None
+            
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_bank_details_to_dict(bank_details)
+            
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to fetch bank details: {str(e)}",
+                error_code=ErrorCodes.BANK_DETAILS_FETCH_FAILED
+            )
+
+    async def update_bank_details(self, db: AsyncSession, area_coordinator_id: int, bank_details_data: dict) -> dict:
+        """Update bank details for an area coordinator"""
+        try:
+            # Get existing bank details
+            bank_details = await db.execute(
+                select(BankDetails).where(BankDetails.area_coordinator_id == area_coordinator_id)
+            )
+            bank_details = bank_details.scalar_one_or_none()
+            
+            if not bank_details:
+                raise create_http_exception(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message="Bank details not found",
+                    error_code=ErrorCodes.BANK_DETAILS_NOT_FOUND
+                )
+            
+            # Update fields
+            for field, value in bank_details_data.items():
+                if hasattr(bank_details, field):
+                    setattr(bank_details, field, value)
+            
+            await db.commit()
+            await db.refresh(bank_details)
+            
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_bank_details_to_dict(bank_details)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to update bank details: {str(e)}",
+                error_code=ErrorCodes.BANK_DETAILS_UPDATE_FAILED
+            )
+
+    async def verify_bank_details(self, db: AsyncSession, area_coordinator_id: int) -> dict:
+        """Mark bank details as verified (admin only)"""
+        try:
+            # Get existing bank details
+            bank_details = await db.execute(
+                select(BankDetails).where(BankDetails.area_coordinator_id == area_coordinator_id)
+            )
+            bank_details = bank_details.scalar_one_or_none()
+            
+            if not bank_details:
+                raise create_http_exception(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message="Bank details not found",
+                    error_code=ErrorCodes.BANK_DETAILS_NOT_FOUND
+                )
+            
+            # Mark as verified
+            bank_details.is_verified = True
+            
+            await db.commit()
+            await db.refresh(bank_details)
+            
+            # Convert to dictionary to avoid SQLAlchemy issues
+            return self._convert_bank_details_to_dict(bank_details)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to verify bank details: {str(e)}",
+                error_code=ErrorCodes.BANK_DETAILS_VERIFICATION_FAILED
+            )
+
+    def _convert_bank_details_to_dict(self, bank_details: BankDetails) -> dict:
+        """Convert BankDetails object to clean dictionary to avoid SQLAlchemy issues"""
+        return {
+            "id": bank_details.id,
+            "area_coordinator_id": bank_details.area_coordinator_id,
+            "bank_name": bank_details.bank_name,
+            "account_holder_name": bank_details.account_holder_name,
+            "account_number": bank_details.account_number,
+            "ifsc_code": bank_details.ifsc_code,
+            "branch_name": bank_details.branch_name,
+            "branch_code": bank_details.branch_code,
+            "account_type": bank_details.account_type,
+            "is_verified": bank_details.is_verified,
+            "bank_passbook_image": bank_details.bank_passbook_image,
+            "cancelled_cheque_image": bank_details.cancelled_cheque_image,
+            "created_at": bank_details.created_at,
+            "updated_at": bank_details.updated_at
+        }
 
 
 # Service instance
