@@ -161,7 +161,7 @@ async def update_user_profile(
         
         # Update profile based on user type
         result = await users_service.update_profile(
-            db, user_id, profile_update.profile_data.dict(exclude_unset=True), db_user.user_type
+            db, user_id, profile_update.profile_data.dict(exclude_unset=True), db_user.get("user_type")
         )
         
         return ProfileResponse(
@@ -272,19 +272,19 @@ async def get_user_profile(
             )
         
         # Return profile based on user type
-        if db_user.user_type.value == "GUEST" and db_user.guest_profile:
+        if db_user.get("user_type") == "GUEST" and db_user.get("guest_profile"):
             return UserProfileGetAPIResponse(
-                data={"profile": db_user.guest_profile, "type": "guest"},
+                data={"profile": db_user.get("guest_profile"), "type": "guest"},
                 message="Guest profile retrieved successfully"
             )
-        elif db_user.user_type.value == "HOST" and db_user.host_profile:
+        elif db_user.get("user_type") == "HOST" and db_user.get("host_profile"):
             return UserProfileGetAPIResponse(
-                data={"profile": db_user.host_profile, "type": "host"},
+                data={"profile": db_user.get("host_profile"), "type": "host"},
                 message="Host profile retrieved successfully"
             )
-        elif db_user.user_type.value == "AREA_COORDINATOR" and db_user.area_coordinator_profile:
+        elif db_user.get("user_type") == "AREA_COORDINATOR" and db_user.get("area_coordinator_profile"):
             return UserProfileGetAPIResponse(
-                data={"profile": db_user.area_coordinator_profile, "type": "area_coordinator"},
+                data={"profile": db_user.get("area_coordinator_profile"), "type": "area_coordinator"},
                 message="Area coordinator profile retrieved successfully"
             )
         else:
@@ -344,7 +344,7 @@ async def update_area_coordinator_approval(
     try:
         # Verify user is an area coordinator
         db_user = await users_service.get_or_404(db, user_id, "User not found")
-        if db_user.user_type.value != "AREA_COORDINATOR":
+        if db_user.get("user_type") != "AREA_COORDINATOR":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Approval can only be updated for area coordinators"
@@ -396,7 +396,7 @@ async def create_bank_details(
     try:
         # Verify user is an area coordinator
         db_user = await users_service.get_or_404(db, user_id, "User not found")
-        if db_user.user_type.value != "AREA_COORDINATOR":
+        if db_user.get("user_type") != "AREA_COORDINATOR":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Bank details can only be created for area coordinators"
@@ -430,7 +430,7 @@ async def get_bank_details(
     try:
         # Verify user is an area coordinator
         db_user = await users_service.get_or_404(db, user_id, "User not found")
-        if db_user.user_type.value != "AREA_COORDINATOR":
+        if db_user.get("user_type") != "AREA_COORDINATOR":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Bank details can only be accessed for area coordinators"
@@ -468,7 +468,7 @@ async def update_bank_details(
     try:
         # Verify user is an area coordinator
         db_user = await users_service.get_or_404(db, user_id, "User not found")
-        if db_user.user_type.value != "AREA_COORDINATOR":
+        if db_user.get("user_type") != "AREA_COORDINATOR":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Bank details can only be updated for area coordinators"
@@ -502,7 +502,7 @@ async def verify_bank_details(
     try:
         # Verify user is an area coordinator
         db_user = await users_service.get_or_404(db, user_id, "User not found")
-        if db_user.user_type.value != "AREA_COORDINATOR":
+        if db_user.get("user_type") != "AREA_COORDINATOR":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Bank details can only be verified for area coordinators"
