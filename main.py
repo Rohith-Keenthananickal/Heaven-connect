@@ -40,11 +40,12 @@ register_exception_handlers(app)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_cors_origins(),
-    allow_credentials=False,  # Changed from True to False
+    allow_origins=["*"],  # not for production if credentials are used
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Create upload directory if it doesn't exist
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

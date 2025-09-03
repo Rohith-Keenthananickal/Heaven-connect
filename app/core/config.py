@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_EXTENSIONS: str = None
     
     # CORS settings
-    CORS_ORIGINS_STR: str = "http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080,https://yourdomain.com"
+    CORS_ORIGINS_STR: str = "*"
     
     # Add fields to allow direct setting from env vars
     CORS_ORIGINS: str = None
