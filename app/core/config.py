@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_EXTENSIONS: str = None
     
     # CORS settings
-    CORS_ORIGINS_STR: str = "*"
+    CORS_ORIGINS_STR: str = "http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080,https://yourdomain.com"
     
     # Add fields to allow direct setting from env vars
     CORS_ORIGINS: str = None
@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     
     def get_cors_origins(self) -> List[str]:
         origins_str = self.CORS_ORIGINS or self.CORS_ORIGINS_STR
+        if origins_str.strip() == "*":
+            return ["*"]
         return [origin.strip() for origin in origins_str.split(',') if origin.strip()]
     
     class Config:
