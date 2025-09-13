@@ -9,6 +9,7 @@ from app.utils.auth import get_password_hash, verify_password
 from app.utils.error_handler import (
     create_http_exception
 )
+from app.utils.atp_uuid import generate_atp_uuid
 from app.schemas.errors import ErrorCodes, ErrorMessages
 from datetime import datetime
 
@@ -169,6 +170,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         elif user.user_type == UserType.AREA_COORDINATOR and user.area_coordinator_profile:
             user_dict["area_coordinator_profile"] = {
                 "id": user.area_coordinator_profile.id,
+                "atp_uuid": user.area_coordinator_profile.atp_uuid,
                 "region": user.area_coordinator_profile.region,
                 "assigned_properties": user.area_coordinator_profile.assigned_properties,
                 "approval_status": user.area_coordinator_profile.approval_status,
@@ -308,6 +310,9 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             profile = Host(id=user_id, **host_profile)
             db.add(profile)
         elif user_type == UserType.AREA_COORDINATOR and area_coordinator_profile:
+            # Generate ATP UUID for new Area Coordinator
+            atp_uuid = await generate_atp_uuid(db)
+            area_coordinator_profile["atp_uuid"] = atp_uuid
             profile = AreaCoordinator(id=user_id, **area_coordinator_profile)
             db.add(profile)
 

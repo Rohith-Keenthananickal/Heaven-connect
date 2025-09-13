@@ -4,6 +4,7 @@ from .property import (
     Location, Availability, PropertyAgreement
 )
 from .location import District, GramaPanchayat
+from .training import TrainingModule, TrainingContent, TrainingProgress, ContentType, TrainingStatus
 
 __all__ = [
     "User",
@@ -21,5 +22,10 @@ __all__ = [
     "Availability",
     "PropertyAgreement",
     "District",
-    "GramaPanchayat"
+    "GramaPanchayat",
+    "TrainingModule",
+    "TrainingContent",
+    "TrainingProgress",
+    "ContentType",
+    "TrainingStatus"
 ]

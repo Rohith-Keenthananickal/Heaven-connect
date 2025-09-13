@@ -149,6 +149,7 @@ class BankDetailsResponse(BankDetailsBase):
 
 # Enhanced Area Coordinator schemas
 class AreaCoordinatorProfileBase(BaseModel):
+    atp_uuid: Optional[str] = Field(None, max_length=20, description="ATP UUID in format ATP-01234")
     region: Optional[str] = Field(None, max_length=200)
     assigned_properties: Optional[int] = Field(0, ge=0)
     

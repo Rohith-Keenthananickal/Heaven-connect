@@ -101,6 +101,7 @@ class AreaCoordinator(Base):
     id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
     
     # Basic Area Coordinator fields
+    atp_uuid: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, unique=True, index=True, comment="ATP UUID in format ATP-01234")
     region: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     assigned_properties: Mapped[Optional[int]] = mapped_column(Integer, default=0, nullable=True)
     
