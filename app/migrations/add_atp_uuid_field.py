@@ -4,6 +4,10 @@ Run this script to add the ATP UUID field to the area_coordinators table
 """
 
 import asyncio
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlalchemy import text
 from app.database import engine
 
@@ -20,10 +24,13 @@ async def add_atp_uuid_field():
     """
     
     # SQL statement to generate ATP UUIDs for existing records
+    # We'll use a different approach since ROW_NUMBER() doesn't work in UPDATE in MySQL
     generate_atp_uuids_sql = """
+    SET @row_number = 0;
     UPDATE area_coordinators 
-    SET atp_uuid = CONCAT('ATP-', LPAD(ROW_NUMBER() OVER (ORDER BY id), 5, '0'))
-    WHERE atp_uuid IS NULL;
+    SET atp_uuid = CONCAT('ATP-', LPAD((@row_number := @row_number + 1), 5, '0'))
+    WHERE atp_uuid IS NULL
+    ORDER BY id;
     """
     
     try:
