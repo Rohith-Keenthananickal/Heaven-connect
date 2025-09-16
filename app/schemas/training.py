@@ -95,7 +95,7 @@ class TrainingContentResponse(TrainingContentBase):
 
 class TrainingModuleResponse(TrainingModuleBase):
     id: int
-    created_by: int
+    created_by: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     contents: Optional[List[TrainingContentResponse]] = None

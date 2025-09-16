@@ -43,7 +43,19 @@ class TrainingModuleService(BaseService[TrainingModule, TrainingModuleCreate, Tr
                 db.add(content)
         
         await db.commit()
+        
+        # Refresh the module and eagerly load contents to avoid lazy loading issues
         await db.refresh(module)
+        if module_data.contents:
+            # Eagerly load the contents relationship
+            from sqlalchemy.orm import selectinload
+            result = await db.execute(
+                select(TrainingModule)
+                .options(selectinload(TrainingModule.contents))
+                .where(TrainingModule.id == module.id)
+            )
+            module = result.scalar_one()
+        
         return module
 
     async def get_with_contents(
@@ -113,7 +125,7 @@ class TrainingModuleService(BaseService[TrainingModule, TrainingModuleCreate, Tr
         # Build response
         result = []
         for module in modules:
-            module_data = TrainingModuleWithProgress.from_orm(module)
+            module_data = TrainingModuleWithProgress.model_validate(module)
             module_data.user_progress = progress_records.get(module.id)
             module_data.total_contents = len(module.contents)
             
@@ -195,7 +207,7 @@ class TrainingContentService(BaseService[TrainingContent, TrainingContentCreate,
         progress = progress_result.scalar_one_or_none()
         
         # Build response
-        content_data = TrainingContentWithProgress.from_orm(content)
+        content_data = TrainingContentWithProgress.model_validate(content)
         content_data.user_progress = progress
         return content_data
 
