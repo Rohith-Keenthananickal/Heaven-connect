@@ -32,7 +32,7 @@ class TrainingModule(Base):
     estimated_duration_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, comment="Estimated time to complete in minutes")
     
     # Metadata
-    created_by: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, comment="Admin who created this module")
+    created_by: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True, comment="Admin who created this module")
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

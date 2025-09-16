@@ -28,8 +28,7 @@ class TrainingModuleService(BaseService[TrainingModule, TrainingModuleCreate, Tr
         """Create a training module with its contents"""
         # Create the module
         module_dict = module_data.dict(exclude={'contents'})
-        if created_by is not None:
-            module_dict['created_by'] = created_by
+        module_dict['created_by'] = created_by  # This can now be None
         
         module = TrainingModule(**module_dict)
         db.add(module)
