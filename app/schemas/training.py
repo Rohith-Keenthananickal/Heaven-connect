@@ -129,6 +129,7 @@ class TrainingContentWithProgress(TrainingContentResponse):
 
 # Specialized schemas for specific operations
 class QuizSubmission(BaseModel):
+    user_id: int = Field(..., gt=0, description="User ID")
     content_id: int = Field(..., gt=0)
     answers: Dict[str, Any] = Field(..., description="User's answers to quiz questions")
     time_spent_seconds: int = Field(..., ge=0)
@@ -144,6 +145,7 @@ class QuizResult(BaseModel):
 
 
 class ProgressUpdate(BaseModel):
+    user_id: int = Field(..., gt=0, description="User ID")
     content_id: Optional[int] = Field(None, gt=0)
     progress_percentage: int = Field(..., ge=0, le=100)
     time_spent_seconds: int = Field(..., ge=0)

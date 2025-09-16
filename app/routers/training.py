@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from typing import List, Optional
 from datetime import datetime
 
 from app.database import get_db
-from app.models.user import User, UserType
+from app.models.training import TrainingContent
 from app.schemas.training import (
     TrainingModuleCreate, TrainingModuleUpdate, TrainingModuleResponse, TrainingModuleWithProgress,
     TrainingContentCreate, TrainingContentUpdate, TrainingContentResponse, TrainingContentWithProgress,
@@ -33,28 +33,11 @@ progress_service = TrainingProgressService()
 @training_modules_router.post("/modules", response_model=TrainingModuleCreateAPIResponse, status_code=status.HTTP_201_CREATED)
 async def create_training_module(
     module_data: TrainingModuleCreate,
-    created_by: int = Query(..., description="Admin user ID who is creating the module"),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new training module"""
-    # Verify the user exists and is an admin
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == created_by,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     module = await module_service.create_with_contents(
-        db, module_data=module_data, created_by=created_by
+        db, module_data=module_data, created_by=None
     )
     return TrainingModuleCreateAPIResponse(data=module)
 
@@ -94,26 +77,9 @@ async def get_training_module(
 async def update_training_module(
     module_id: int,
     module_data: TrainingModuleUpdate,
-    admin_user_id: int = Query(..., description="Admin user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Update a training module"""
-    # Verify the user exists and is an admin
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == admin_user_id,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     module = await module_service.get_or_404(db, module_id, "Training module not found")
     updated_module = await module_service.update(db, db_obj=module, obj_in=module_data)
     return TrainingModuleUpdateAPIResponse(data=updated_module)
@@ -122,26 +88,9 @@ async def update_training_module(
 @training_modules_router.delete("/modules/{module_id}", response_model=TrainingModuleDeleteAPIResponse)
 async def delete_training_module(
     module_id: int,
-    admin_user_id: int = Query(..., description="Admin user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete a training module"""
-    # Verify the user exists and is an admin
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == admin_user_id,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     await module_service.delete(db, id=module_id)
     return TrainingModuleDeleteAPIResponse(data={})
 
@@ -151,26 +100,9 @@ async def delete_training_module(
 async def create_training_content(
     module_id: int,
     content_data: TrainingContentCreate,
-    admin_user_id: int = Query(..., description="Admin user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Create training content for a module"""
-    # Verify the user exists and is an admin
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == admin_user_id,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     # Verify module exists
     module = await module_service.get_or_404(db, module_id, "Training module not found")
     
@@ -193,27 +125,14 @@ async def get_module_contents(
 @training_modules_router.get("/contents/{content_id}", response_model=TrainingContentGetAPIResponse)
 async def get_training_content(
     content_id: int,
-    user_id: int = Query(..., description="Area Coordinator user ID"),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get training content with user's progress"""
-    # Verify the user exists and is an area coordinator
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == user_id,
-                User.user_type == UserType.AREA_COORDINATOR
-            )
-        )
+    """Get training content"""
+    # Get content without user progress
+    content_result = await db.execute(
+        select(TrainingContent).where(TrainingContent.id == content_id)
     )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Area Coordinator user not found"
-        )
-    
-    content = await content_service.get_with_user_progress(db, content_id, user_id)
+    content = content_result.scalar_one_or_none()
     if not content:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -226,26 +145,9 @@ async def get_training_content(
 async def update_training_content(
     content_id: int,
     content_data: TrainingContentUpdate,
-    admin_user_id: int = Query(..., description="Admin user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Update training content"""
-    # Verify the user exists and is an admin
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == admin_user_id,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     content = await content_service.get_or_404(db, content_id, "Training content not found")
     updated_content = await content_service.update(db, db_obj=content, obj_in=content_data)
     return TrainingContentUpdateAPIResponse(data=updated_content)
@@ -254,26 +156,9 @@ async def update_training_content(
 @training_modules_router.delete("/contents/{content_id}", response_model=TrainingContentDeleteAPIResponse)
 async def delete_training_content(
     content_id: int,
-    admin_user_id: int = Query(..., description="Admin user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete training content"""
-    # Verify the user exists and is an admin
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == admin_user_id,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     await content_service.delete(db, id=content_id)
     return TrainingContentDeleteAPIResponse(data={})
 
@@ -281,30 +166,13 @@ async def delete_training_content(
 # Area Coordinator Training Endpoints - ATP Training Controller
 @training_controller_router.get("/my-modules", response_model=UserTrainingModulesAPIResponse)
 async def get_my_training_modules(
-    user_id: int = Query(..., description="Area Coordinator user ID"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get training modules with user's progress"""
-    # Verify the user exists and is an area coordinator
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == user_id,
-                User.user_type == UserType.AREA_COORDINATOR
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Area Coordinator user not found"
-        )
-    
-    modules = await module_service.get_modules_with_user_progress(
-        db, user_id, skip=skip, limit=limit
+    """Get training modules"""
+    modules = await module_service.get_active_modules(
+        db, skip=skip, limit=limit
     )
     return UserTrainingModulesAPIResponse(data=modules)
 
@@ -312,79 +180,43 @@ async def get_my_training_modules(
 @training_controller_router.post("/progress", response_model=TrainingProgressUpdateAPIResponse)
 async def update_training_progress(
     progress_data: ProgressUpdate,
-    user_id: int = Query(..., description="Area Coordinator user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Update training progress"""
-    # Verify the user exists and is an area coordinator
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == user_id,
-                User.user_type == UserType.AREA_COORDINATOR
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
+    # Note: This endpoint requires user_id in progress_data
+    if not progress_data.user_id:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Area Coordinator user not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id is required in request body"
         )
     
-    progress = await progress_service.update_progress(db, user_id, progress_data)
+    progress = await progress_service.update_progress(db, progress_data.user_id, progress_data)
     return TrainingProgressUpdateAPIResponse(data=progress)
 
 
 @training_controller_router.post("/quiz/submit", response_model=QuizSubmitAPIResponse)
 async def submit_quiz(
     quiz_data: QuizSubmission,
-    user_id: int = Query(..., description="Area Coordinator user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Submit quiz answers"""
-    # Verify the user exists and is an area coordinator
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == user_id,
-                User.user_type == UserType.AREA_COORDINATOR
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
+    # Note: This endpoint requires user_id in quiz_data
+    if not quiz_data.user_id:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Area Coordinator user not found"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="user_id is required in request body"
         )
     
-    result = await progress_service.submit_quiz(db, user_id, quiz_data)
+    result = await progress_service.submit_quiz(db, quiz_data.user_id, quiz_data)
     return QuizSubmitAPIResponse(data=result)
 
 
 @training_controller_router.get("/stats", response_model=TrainingStatsAPIResponse)
 async def get_training_stats(
-    user_id: int = Query(..., description="Area Coordinator user ID"),
+    user_id: int = Query(..., description="User ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get comprehensive training statistics"""
-    # Verify the user exists and is an area coordinator
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == user_id,
-                User.user_type == UserType.AREA_COORDINATOR
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Area Coordinator user not found"
-        )
-    
     stats = await progress_service.get_user_stats(db, user_id)
     return TrainingStatsAPIResponse(data=stats)
 
@@ -392,26 +224,10 @@ async def get_training_stats(
 @training_controller_router.get("/modules/{module_id}/progress", response_model=ModuleProgressAPIResponse)
 async def get_module_progress(
     module_id: int,
-    user_id: int = Query(..., description="Area Coordinator user ID"),
+    user_id: int = Query(..., description="User ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get detailed progress for a specific module"""
-    # Verify the user exists and is an area coordinator
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == user_id,
-                User.user_type == UserType.AREA_COORDINATOR
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Area Coordinator user not found"
-        )
-    
     progress = await progress_service.get_module_progress_summary(db, user_id, module_id)
     if not progress:
         raise HTTPException(
@@ -424,26 +240,9 @@ async def get_module_progress(
 # Admin Analytics Endpoints - ATP Training Controller
 @training_controller_router.get("/admin/analytics", response_model=TrainingAnalyticsAPIResponse)
 async def get_training_analytics(
-    admin_user_id: int = Query(..., description="Admin user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get training analytics for all users"""
-    # Verify the user exists and is an admin
-    user_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == admin_user_id,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     # This would need to be implemented based on specific analytics requirements
     # For now, returning a placeholder
     return TrainingAnalyticsAPIResponse(data=[{"message": "Analytics endpoint - to be implemented based on requirements"}])
@@ -452,26 +251,9 @@ async def get_training_analytics(
 @training_controller_router.get("/admin/user/{user_id}/progress", response_model=TrainingStatsAPIResponse)
 async def get_user_training_progress(
     user_id: int,
-    admin_user_id: int = Query(..., description="Admin user ID"),
     db: AsyncSession = Depends(get_db)
 ):
     """Get training progress for a specific user"""
-    # Verify the admin user exists and is an admin
-    admin_result = await db.execute(
-        select(User).where(
-            and_(
-                User.id == admin_user_id,
-                User.user_type == UserType.ADMIN
-            )
-        )
-    )
-    admin_user = admin_result.scalar_one_or_none()
-    if not admin_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Admin user not found"
-        )
-    
     stats = await progress_service.get_user_stats(db, user_id)
     return TrainingStatsAPIResponse(data=stats)
 

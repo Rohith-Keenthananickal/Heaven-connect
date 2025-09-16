@@ -11,6 +11,7 @@ class ContentType(str, enum.Enum):
     VIDEO = "VIDEO"
     DOCUMENT = "DOCUMENT"
     QUIZ = "QUIZ"
+    IMAGE = "IMAGE"
 
 
 class TrainingStatus(str, enum.Enum):

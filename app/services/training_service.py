@@ -6,7 +6,6 @@ from fastapi import HTTPException, status
 from datetime import datetime
 
 from app.models.training import TrainingModule, TrainingContent, TrainingProgress, ContentType, TrainingStatus
-from app.models.user import User, UserType
 from app.schemas.training import (
     TrainingModuleCreate, TrainingModuleUpdate, TrainingContentCreate, TrainingContentUpdate,
     TrainingProgressCreate, TrainingProgressUpdate, QuizSubmission, ProgressUpdate,
@@ -24,12 +23,13 @@ class TrainingModuleService(BaseService[TrainingModule, TrainingModuleCreate, Tr
         db: AsyncSession, 
         *, 
         module_data: TrainingModuleCreate,
-        created_by: int
+        created_by: Optional[int] = None
     ) -> TrainingModule:
         """Create a training module with its contents"""
         # Create the module
         module_dict = module_data.dict(exclude={'contents'})
-        module_dict['created_by'] = created_by
+        if created_by is not None:
+            module_dict['created_by'] = created_by
         
         module = TrainingModule(**module_dict)
         db.add(module)
@@ -213,21 +213,6 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
         content_id: Optional[int] = None
     ) -> TrainingProgress:
         """Get existing progress or create new one"""
-        # Check if user is area coordinator
-        user_result = await db.execute(
-            select(User).where(
-                and_(
-                    User.id == user_id,
-                    User.user_type == UserType.AREA_COORDINATOR
-                )
-            )
-        )
-        user = user_result.scalar_one_or_none()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only Area Coordinators can access training"
-            )
         
         # Get existing progress
         query = select(TrainingProgress).where(
