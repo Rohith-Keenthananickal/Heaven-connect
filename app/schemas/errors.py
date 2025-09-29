@@ -104,6 +104,15 @@ class ErrorMessages:
     IMAGE_PROCESSING_FAILED = "Image processing failed"
     IMAGE_DELETION_FAILED = "Image deletion failed"
     
+    # S3-related errors
+    S3_CONNECTION_FAILED = "Failed to connect to S3"
+    S3_UPLOAD_FAILED = "S3 upload failed"
+    S3_DOWNLOAD_FAILED = "S3 download failed"
+    S3_DELETE_FAILED = "S3 delete failed"
+    S3_BUCKET_NOT_FOUND = "S3 bucket not found"
+    S3_ACCESS_DENIED = "S3 access denied"
+    S3_INVALID_CREDENTIALS = "S3 invalid credentials"
+    
     # Database errors
     DATABASE_CONNECTION_ERROR = "Database connection error"
     DATABASE_QUERY_ERROR = "Database query error"
@@ -174,6 +183,15 @@ class ErrorCodes:
     IMAGE_UPLOAD_FAILED = "IMAGE_UPLOAD_FAILED"
     IMAGE_PROCESSING_FAILED = "IMAGE_PROCESSING_FAILED"
     IMAGE_DELETION_FAILED = "IMAGE_DELETION_FAILED"
+    
+    # S3-related errors
+    S3_CONNECTION_FAILED = "S3_CONNECTION_FAILED"
+    S3_UPLOAD_FAILED = "S3_UPLOAD_FAILED"
+    S3_DOWNLOAD_FAILED = "S3_DOWNLOAD_FAILED"
+    S3_DELETE_FAILED = "S3_DELETE_FAILED"
+    S3_BUCKET_NOT_FOUND = "S3_BUCKET_NOT_FOUND"
+    S3_ACCESS_DENIED = "S3_ACCESS_DENIED"
+    S3_INVALID_CREDENTIALS = "S3_INVALID_CREDENTIALS"
     
     # Database errors
     DATABASE_CONNECTION_ERROR = "DATABASE_CONNECTION_ERROR"

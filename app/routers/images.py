@@ -14,30 +14,17 @@ router = APIRouter(prefix="/images", tags=["Images"])
 @router.post("/upload", response_model=ImageUploadResponse)
 async def upload_single_image(
     file: UploadFile = File(..., description="Image file to upload"),
-    image_type: str = Form(..., description="Type of image (user, property, room, document, bank, profile)"),
-    user_id: Optional[int] = Form(None, description="User ID for user-specific uploads")
+    image_type: str = Form(..., description="Type of image (user, property, room, document, bank, profile)")
 ):
     """
     Upload a single image file
     
     - **file**: The image file to upload
     - **image_type**: Type of image (user, property, room, document, bank, profile)
-    - **user_id**: Optional user ID for user-specific uploads (required for user/profile types)
     """
     try:
-        # Validate user_id for user-specific uploads
-        if image_type in ["user", "profile"] and not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="user_id is required for user and profile image uploads"
-            )
-        
-        # Upload the image
-        result = await image_service.upload_image(file, image_type, user_id)
-        
-        # Generate public URL
-        public_url = image_service.get_image_url(result["file_path"])
-        result["public_url"] = public_url
+        # Upload the image to S3
+        result = await image_service.upload_image(file, image_type)
         
         return ImageUploadResponse(
             message="Image uploaded successfully",
@@ -56,24 +43,15 @@ async def upload_single_image(
 @router.post("/upload/multiple", response_model=MultipleImageUploadResponse)
 async def upload_multiple_images(
     files: List[UploadFile] = File(..., description="Multiple image files to upload"),
-    image_type: str = Form(..., description="Type of image (user, property, room, document, bank, profile)"),
-    user_id: Optional[int] = Form(None, description="User ID for user-specific uploads")
+    image_type: str = Form(..., description="Type of image (user, property, room, document, bank, profile)")
 ):
     """
     Upload multiple image files of the same type
     
     - **files**: List of image files to upload
     - **image_type**: Type of image (user, property, room, document, bank, profile)
-    - **user_id**: Optional user ID for user-specific uploads (required for user/profile types)
     """
     try:
-        # Validate user_id for user-specific uploads
-        if image_type in ["user", "profile"] and not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="user_id is required for user and profile image uploads"
-            )
-        
         # Validate number of files
         if len(files) > 10:  # Limit to 10 files at once
             raise HTTPException(
@@ -82,7 +60,7 @@ async def upload_multiple_images(
             )
         
         # Upload multiple images
-        results = await image_service.upload_multiple_images(files, image_type, user_id)
+        results = await image_service.upload_multiple_images(files, image_type)
         
         # Separate successful and failed uploads
         successful = []
@@ -90,9 +68,6 @@ async def upload_multiple_images(
         
         for result in results:
             if "error" not in result:
-                # Generate public URL for successful uploads
-                public_url = image_service.get_image_url(result["file_path"])
-                result["public_url"] = public_url
                 successful.append(result)
             else:
                 failed.append(result)
@@ -139,31 +114,21 @@ async def get_image_types():
 
 @router.delete("/delete", response_model=ImageDeleteResponse)
 async def delete_image(
-    file_path: str = Query(..., description="Path to the file to delete")
+    s3_key: str = Query(..., description="S3 key (path) of the file to delete")
 ):
     """
-    Delete an uploaded image file
+    Delete an uploaded image file from S3
     
-    - **file_path**: Path to the file to delete (relative to uploads directory)
+    - **s3_key**: S3 key (path) of the file to delete
     """
     try:
-        # Validate file path (prevent directory traversal)
-        if ".." in file_path or file_path.startswith("/"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file path"
-            )
-        
-        # Construct full path
-        full_path = os.path.join("uploads", file_path.lstrip("uploads/"))
-        
-        # Delete the file
-        success = await image_service.delete_image(full_path)
+        # Delete the file from S3
+        success = await image_service.delete_image(s3_key)
         
         if success:
             return ImageDeleteResponse(
                 message="Image deleted successfully",
-                data={"deleted": True, "file_path": file_path}
+                data={"deleted": True, "s3_key": s3_key}
             )
         else:
             raise HTTPException(
@@ -180,103 +145,118 @@ async def delete_image(
         )
 
 
-@router.get("/serve/{file_path:path}")
-async def serve_image(file_path: str):
+@router.get("/url/{s3_key:path}")
+async def get_image_url(
+    s3_key: str,
+    expires_in: int = Query(3600, ge=60, le=86400, description="URL expiration time in seconds (60-86400)")
+):
     """
-    Serve an uploaded image file
+    Get public or presigned URL for an image
     
-    - **file_path**: Path to the image file relative to uploads directory
+    - **s3_key**: S3 key (path) of the image file
+    - **expires_in**: URL expiration time in seconds (default: 1 hour, max: 24 hours)
     """
     try:
-        # Validate file path (prevent directory traversal)
-        if ".." in file_path or file_path.startswith("/"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file path"
-            )
+        # Get public URL (no expiration)
+        public_url = image_service.get_image_url(s3_key)
         
-        # Construct full path
-        full_path = os.path.join("uploads", file_path.lstrip("uploads/"))
-        
-        # Check if file exists
-        if not os.path.exists(full_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Image not found"
-            )
-        
-        # Return the file
-        return FileResponse(full_path)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to serve image: {str(e)}"
-        )
-
-
-@router.get("/info/{file_path:path}")
-async def get_image_info(file_path: str):
-    """
-    Get information about an uploaded image file
-    
-    - **file_path**: Path to the image file relative to uploads directory
-    """
-    try:
-        # Validate file path (prevent directory traversal)
-        if ".." in file_path or file_path.startswith("/"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid file path"
-            )
-        
-        # Construct full path
-        full_path = os.path.join("uploads", file_path.lstrip("uploads/"))
-        
-        # Check if file exists
-        if not os.path.exists(full_path):
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Image not found"
-            )
-        
-        # Get file stats
-        stat = os.stat(full_path)
-        
-        # Generate public URL
-        public_url = image_service.get_image_url(full_path)
-        
-        # Get file extension
-        file_extension = os.path.splitext(file_path)[1].lower()
-        
-        # Determine image type from path
-        path_parts = file_path.split("/")
-        image_type = path_parts[1] if len(path_parts) > 1 else "unknown"
+        # Get presigned URL (with expiration)
+        presigned_url = image_service.get_presigned_url(s3_key, expires_in)
         
         return {
             "status": "success",
-            "message": "Image information retrieved successfully",
             "data": {
-                "file_path": file_path,
-                "file_name": os.path.basename(file_path),
-                "file_size": stat.st_size,
-                "file_type": file_extension.lstrip("."),
-                "image_type": image_type,
-                "uploaded_at": stat.st_mtime,
+                "s3_key": s3_key,
                 "public_url": public_url,
-                "metadata": {
-                    "exists": True,
-                    "readable": os.access(full_path, os.R_OK)
-                }
+                "presigned_url": presigned_url,
+                "expires_in": expires_in
             }
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get image info: {str(e)}"
+            detail=f"Failed to generate URL: {str(e)}"
         )
+
+
+@router.get("/download/{s3_key:path}")
+async def download_image(s3_key: str):
+    """
+    Download image content from S3
+    
+    - **s3_key**: S3 key (path) of the image file
+    """
+    try:
+        # Download image content
+        content = await image_service.download_image(s3_key)
+        
+        # Get file metadata to determine content type
+        metadata = await image_service.get_image_metadata(s3_key)
+        content_type = metadata.get("content_type", "application/octet-stream")
+        
+        # Return file content
+        from fastapi.responses import Response
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={"Content-Disposition": f"attachment; filename={s3_key.split('/')[-1]}"}
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to download image: {str(e)}"
+        )
+
+
+@router.get("/exists/{s3_key:path}")
+async def check_image_exists(s3_key: str):
+    """
+    Check if an image exists in S3
+    
+    - **s3_key**: S3 key (path) of the image file
+    """
+    try:
+        exists = await image_service.image_exists(s3_key)
+        
+        return {
+            "status": "success",
+            "data": {
+                "s3_key": s3_key,
+                "exists": exists
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check image existence: {str(e)}"
+        )
+
+
+@router.get("/metadata/{s3_key:path}")
+async def get_image_metadata(s3_key: str):
+    """
+    Get image metadata from S3
+    
+    - **s3_key**: S3 key (path) of the image file
+    """
+    try:
+        metadata = await image_service.get_image_metadata(s3_key)
+        
+        return {
+            "status": "success",
+            "data": {
+                "s3_key": s3_key,
+                "metadata": metadata
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get image metadata: {str(e)}"
+        )
+
+

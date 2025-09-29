@@ -44,6 +44,15 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     
+    # AWS S3 settings
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+    S3_BUCKET_NAME: str = ""
+    S3_ENDPOINT_URL: str = ""  # Optional, for custom S3-compatible services
+    S3_USE_SSL: bool = True
+    S3_SIGNATURE_VERSION: str = "s3v4"
+    
     def get_allowed_extensions(self) -> List[str]:
         extensions_str = self.ALLOWED_IMAGE_EXTENSIONS or self.ALLOWED_IMAGE_EXTENSIONS_STR
         return [ext.strip() for ext in extensions_str.split(',') if ext.strip()]

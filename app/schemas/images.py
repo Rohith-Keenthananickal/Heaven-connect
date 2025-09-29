@@ -6,7 +6,6 @@ from datetime import datetime
 class ImageUploadRequest(BaseModel):
     """Request schema for image upload"""
     image_type: str = Field(..., description="Type of image (user, property, room, document, bank, profile)")
-    user_id: Optional[int] = Field(None, description="User ID for user-specific uploads")
 
 
 class ImageUploadResponse(BaseModel):
@@ -27,19 +26,18 @@ class MultipleImageUploadResponse(BaseModel):
 
 class ImageInfo(BaseModel):
     """Schema for image information"""
-    file_path: str = Field(..., description="Path to the uploaded file")
+    s3_key: str = Field(..., description="S3 key (path) of the uploaded file")
     file_name: str = Field(..., description="Name of the uploaded file")
     file_size: int = Field(..., description="Size of the file in bytes")
     file_type: str = Field(..., description="File extension/type")
     image_type: str = Field(..., description="Type of image uploaded")
+    url: str = Field(..., description="Public URL for the image")
     uploaded_at: str = Field(..., description="Upload timestamp")
     metadata: Dict[str, Any] = Field(..., description="Additional file metadata")
-    public_url: Optional[str] = Field(None, description="Public URL for the image")
 
 
 class ImageTypeInfo(BaseModel):
     """Schema for image type configuration information"""
-    folder: str = Field(..., description="Upload folder for this type")
     max_size_mb: int = Field(..., description="Maximum file size in MB")
     allowed_formats: List[str] = Field(..., description="Allowed file formats")
     max_dimensions: tuple = Field(..., description="Maximum image dimensions (width, height)")

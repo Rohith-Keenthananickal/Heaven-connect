@@ -7,77 +7,61 @@ from PIL import Image
 import io
 from app.utils.error_handler import create_http_exception
 from app.schemas.errors import ErrorCodes
+from app.services.s3_service import s3_service
 
 
 class ImageService:
     def __init__(self):
-        # Base upload directory
-        self.base_upload_dir = "uploads"
-        
         # Allowed image types and their configurations
         self.allowed_types = {
             "user": {
-                "folder": "users",
                 "max_size_mb": 5,
                 "allowed_formats": ["jpg", "jpeg", "png", "webp"],
                 "max_dimensions": (800, 800),
                 "quality": 85
             },
             "property": {
-                "folder": "properties",
                 "max_size_mb": 10,
                 "allowed_formats": ["jpg", "jpeg", "png", "webp"],
                 "max_dimensions": (1920, 1080),
                 "quality": 90
             },
             "room": {
-                "folder": "rooms",
                 "max_size_mb": 8,
                 "allowed_formats": ["jpg", "jpeg", "png", "webp"],
                 "max_dimensions": (1600, 1200),
                 "quality": 90
             },
             "document": {
-                "folder": "documents",
                 "max_size_mb": 15,
                 "allowed_formats": ["jpg", "jpeg", "png", "pdf"],
                 "max_dimensions": (1200, 1600),
                 "quality": 85
             },
             "bank": {
-                "folder": "bank_documents",
                 "max_size_mb": 8,
                 "allowed_formats": ["jpg", "jpeg", "png", "pdf"],
                 "max_dimensions": (1200, 1600),
                 "quality": 85
             },
             "profile": {
-                "folder": "profiles",
                 "max_size_mb": 3,
                 "allowed_formats": ["jpg", "jpeg", "png", "webp"],
                 "max_dimensions": (400, 400),
                 "quality": 80
             }
         }
-        
-        # Create base upload directory if it doesn't exist
-        os.makedirs(self.base_upload_dir, exist_ok=True)
-        
-        # Create subdirectories for each type
-        for config in self.allowed_types.values():
-            os.makedirs(os.path.join(self.base_upload_dir, config["folder"]), exist_ok=True)
 
-    async def upload_image(self, file: UploadFile, image_type: str, user_id: Optional[int] = None) -> dict:
+    async def upload_image(self, file: UploadFile, image_type: str) -> dict:
         """
-        Upload and process an image file
+        Upload and process an image file to S3
         
         Args:
             file: The uploaded file
             image_type: Type of image (user, property, room, etc.)
-            user_id: Optional user ID for user-specific uploads
             
         Returns:
-            dict: Contains file_path, file_name, file_size, and metadata
+            dict: Contains s3_key, file_name, file_size, url, and metadata
         """
         try:
             # Validate image type
@@ -105,19 +89,23 @@ class ImageService:
             # Generate unique filename
             unique_filename = self._generate_unique_filename(file_extension)
             
-            # Determine upload path
-            upload_path = self._get_upload_path(image_type, unique_filename, user_id)
+            # Generate S3 key
+            s3_key = s3_service.generate_s3_key(image_type, unique_filename)
             
-            # Process and save image
-            file_info = await self._process_and_save_image(file, upload_path, config)
+            # Process and upload image to S3
+            file_info = await self._process_and_upload_to_s3(file, s3_key, config)
+            
+            # Generate public URL
+            public_url = s3_service.get_public_url(s3_key)
             
             # Return file information
             return {
-                "file_path": file_info["file_path"],
-                "file_name": file_info["file_name"],
+                "s3_key": s3_key,
+                "file_name": unique_filename,
                 "file_size": file_info["file_size"],
                 "file_type": file_extension.lower(),
                 "image_type": image_type,
+                "url": public_url,
                 "uploaded_at": datetime.utcnow().isoformat(),
                 "metadata": file_info.get("metadata", {})
             }
@@ -131,14 +119,13 @@ class ImageService:
                 error_code=ErrorCodes.IMAGE_UPLOAD_FAILED
             )
 
-    async def upload_multiple_images(self, files: List[UploadFile], image_type: str, user_id: Optional[int] = None) -> List[dict]:
+    async def upload_multiple_images(self, files: List[UploadFile], image_type: str) -> List[dict]:
         """
         Upload multiple images of the same type
         
         Args:
             files: List of uploaded files
             image_type: Type of image
-            user_id: Optional user ID for user-specific uploads
             
         Returns:
             List of upload results
@@ -146,7 +133,7 @@ class ImageService:
         results = []
         for file in files:
             try:
-                result = await self.upload_image(file, image_type, user_id)
+                result = await self.upload_image(file, image_type)
                 results.append(result)
             except Exception as e:
                 # Log error but continue with other files
@@ -158,21 +145,18 @@ class ImageService:
         
         return results
 
-    async def delete_image(self, file_path: str) -> bool:
+    async def delete_image(self, s3_key: str) -> bool:
         """
-        Delete an uploaded image file
+        Delete an uploaded image file from S3
         
         Args:
-            file_path: Path to the file to delete
+            s3_key: S3 key (path) of the file to delete
             
         Returns:
             bool: True if deleted successfully
         """
         try:
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                return True
-            return False
+            return await s3_service.delete_file(s3_key)
         except Exception as e:
             raise create_http_exception(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -212,35 +196,26 @@ class ImageService:
         unique_id = str(uuid.uuid4())[:8]
         return f"{timestamp}_{unique_id}.{extension}"
 
-    def _get_upload_path(self, image_type: str, filename: str, user_id: Optional[int] = None) -> str:
-        """Generate upload path for the image"""
-        config = self.allowed_types[image_type]
-        folder = config["folder"]
-        
-        if user_id and image_type in ["user", "profile"]:
-            # User-specific folder structure
-            user_folder = os.path.join(folder, str(user_id))
-            os.makedirs(os.path.join(self.base_upload_dir, user_folder), exist_ok=True)
-            return os.path.join(self.base_upload_dir, user_folder, filename)
-        else:
-            # General folder structure
-            return os.path.join(self.base_upload_dir, folder, filename)
-
-    async def _process_and_save_image(self, file: UploadFile, upload_path: str, config: dict) -> dict:
-        """Process and save the image file"""
+    async def _process_and_upload_to_s3(self, file: UploadFile, s3_key: str, config: dict) -> dict:
+        """Process and upload the image file to S3"""
         try:
             content = await file.read()
             
-            # For PDFs, save directly
+            # For PDFs, upload directly
             if file.filename.lower().endswith('.pdf'):
-                with open(upload_path, "wb") as f:
-                    f.write(content)
+                content_type = "application/pdf"
+                metadata = {"type": "pdf"}
+                
+                await s3_service.upload_file(
+                    file_content=content,
+                    s3_key=s3_key,
+                    content_type=content_type,
+                    metadata=metadata
+                )
                 
                 return {
-                    "file_path": upload_path,
-                    "file_name": os.path.basename(upload_path),
                     "file_size": len(content),
-                    "metadata": {"type": "pdf"}
+                    "metadata": metadata
                 }
             
             # For images, process and optimize
@@ -254,59 +229,138 @@ class ImageService:
             if image.size[0] > config["max_dimensions"][0] or image.size[1] > config["max_dimensions"][1]:
                 image.thumbnail(config["max_dimensions"], Image.Resampling.LANCZOS)
             
-            # Save optimized image
-            if upload_path.lower().endswith('.webp'):
-                image.save(upload_path, 'WEBP', quality=config["quality"])
+            # Save optimized image to bytes
+            output = io.BytesIO()
+            if s3_key.lower().endswith('.webp'):
+                image.save(output, 'WEBP', quality=config["quality"])
+                content_type = "image/webp"
             else:
-                image.save(upload_path, 'JPEG', quality=config["quality"])
+                image.save(output, 'JPEG', quality=config["quality"])
+                content_type = "image/jpeg"
+            
+            processed_content = output.getvalue()
+            
+            # Upload to S3
+            metadata = {
+                "dimensions": f"{image.size[0]}x{image.size[1]}",
+                "format": image.format or "JPEG",
+                "mode": image.mode,
+                "original_filename": file.filename
+            }
+            
+            await s3_service.upload_file(
+                file_content=processed_content,
+                s3_key=s3_key,
+                content_type=content_type,
+                metadata=metadata
+            )
             
             return {
-                "file_path": upload_path,
-                "file_name": os.path.basename(upload_path),
-                "file_size": os.path.getsize(upload_path),
-                "metadata": {
-                    "dimensions": image.size,
-                    "format": image.format,
-                    "mode": image.mode
-                }
+                "file_size": len(processed_content),
+                "metadata": metadata
             }
             
         except Exception as e:
             raise create_http_exception(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                message=f"Failed to process image: {str(e)}",
+                message=f"Failed to process and upload image: {str(e)}",
                 error_code=ErrorCodes.IMAGE_PROCESSING_FAILED
             )
 
-    def get_image_url(self, file_path: str, base_url: str = "") -> str:
+
+    def get_image_url(self, s3_key: str, expires_in: int = 3600) -> str:
         """
-        Generate public URL for the uploaded image
+        Generate public URL for the uploaded image from S3
         
         Args:
-            file_path: Path to the image file
-            base_url: Base URL of your application
+            s3_key: S3 key (path) of the image file
+            expires_in: URL expiration time in seconds (default: 1 hour)
             
         Returns:
             str: Public URL for the image
         """
-        if not base_url:
-            base_url = "http://localhost:8000"
+        return s3_service.get_public_url(s3_key)
+    
+    def get_presigned_url(self, s3_key: str, expires_in: int = 3600) -> str:
+        """
+        Generate presigned URL for the uploaded image from S3
         
-        # Convert file path to URL path
-        url_path = file_path.replace("\\", "/").replace("uploads/", "static/uploads/")
-        return f"{base_url}/{url_path}"
+        Args:
+            s3_key: S3 key (path) of the image file
+            expires_in: URL expiration time in seconds (default: 1 hour)
+            
+        Returns:
+            str: Presigned URL for the image
+        """
+        return s3_service.get_file_url(s3_key, expires_in)
 
     def get_allowed_types(self) -> dict:
         """Get information about allowed image types"""
         return {
             image_type: {
-                "folder": config["folder"],
                 "max_size_mb": config["max_size_mb"],
                 "allowed_formats": config["allowed_formats"],
                 "max_dimensions": config["max_dimensions"]
             }
             for image_type, config in self.allowed_types.items()
         }
+    
+    async def download_image(self, s3_key: str) -> bytes:
+        """
+        Download image content from S3
+        
+        Args:
+            s3_key: S3 key (path) of the image file
+            
+        Returns:
+            bytes: Image content
+        """
+        try:
+            return await s3_service.download_file(s3_key)
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to download image: {str(e)}",
+                error_code=ErrorCodes.S3_DOWNLOAD_FAILED
+            )
+    
+    async def image_exists(self, s3_key: str) -> bool:
+        """
+        Check if image exists in S3
+        
+        Args:
+            s3_key: S3 key (path) of the image file
+            
+        Returns:
+            bool: True if image exists
+        """
+        try:
+            return await s3_service.file_exists(s3_key)
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to check image existence: {str(e)}",
+                error_code=ErrorCodes.S3_DOWNLOAD_FAILED
+            )
+    
+    async def get_image_metadata(self, s3_key: str) -> dict:
+        """
+        Get image metadata from S3
+        
+        Args:
+            s3_key: S3 key (path) of the image file
+            
+        Returns:
+            dict: Image metadata
+        """
+        try:
+            return await s3_service.get_file_metadata(s3_key)
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to get image metadata: {str(e)}",
+                error_code=ErrorCodes.S3_DOWNLOAD_FAILED
+            )
 
 
 # Service instance
