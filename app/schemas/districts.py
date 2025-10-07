@@ -92,5 +92,13 @@ class DistrictWithPanchayatsResponse(DistrictResponse):
     grama_panchayats: List["GramaPanchayatResponse"] = []
 
 
+class DistrictWithAllLocalBodiesResponse(DistrictResponse):
+    grama_panchayats: List["GramaPanchayatResponse"] = []
+    corporations: List["CorporationResponse"] = []
+    municipalities: List["MunicipalityResponse"] = []
+
+
 # Import here to avoid circular imports
 from .grama_panchayats import GramaPanchayatResponse
+from .corporations import CorporationResponse
+from .municipalities import MunicipalityResponse

@@ -8,6 +8,7 @@ from app.schemas.districts import (
     DistrictResponse, 
     DistrictListResponse,
     DistrictWithPanchayatsResponse,
+    DistrictWithAllLocalBodiesResponse,
     DistrictCreateAPIResponse, DistrictListAPIResponse, DistrictGetAPIResponse,
     DistrictUpdateAPIResponse, DistrictDeleteAPIResponse, DistrictWithPanchayatsAPIResponse
 )
@@ -155,6 +156,24 @@ async def delete_district(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Failed to delete district: {str(e)}"
+        )
+
+
+@router.get("/{district_id}/with-all-local-bodies", response_model=DistrictWithAllLocalBodiesResponse)
+async def get_district_with_all_local_bodies(
+    district_id: int, 
+    db: AsyncSession = Depends(get_db)
+):
+    """Get a district with all its local bodies (grama panchayats, corporations, municipalities)"""
+    try:
+        db_district = await district_service.get_or_404(db, district_id, "District not found")
+        return db_district
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Failed to fetch district with all local bodies: {str(e)}"
         )
 
 
