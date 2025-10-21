@@ -13,6 +13,13 @@ class S3Service:
         """Initialize S3 service with configuration from settings"""
         self.bucket_name = settings.S3_BUCKET_NAME
         self.region = settings.AWS_REGION
+        self.s3_client = None
+        self.is_available = False
+        
+        # Check if S3 is configured
+        if not self._is_s3_configured():
+            print("Warning: S3 not configured. File uploads will be disabled.")
+            return
         
         # Initialize S3 client
         try:
@@ -28,19 +35,22 @@ class S3Service:
             
             # Test connection by checking if bucket exists
             self._verify_bucket_exists()
+            self.is_available = True
+            print(f"S3 service initialized successfully with bucket: {self.bucket_name}")
             
         except NoCredentialsError:
-            raise create_http_exception(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                message="AWS credentials not found",
-                error_code=ErrorCodes.S3_INVALID_CREDENTIALS
-            )
+            print("Warning: AWS credentials not found. S3 service disabled.")
         except Exception as e:
-            raise create_http_exception(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                message=f"Failed to initialize S3 client: {str(e)}",
-                error_code=ErrorCodes.S3_CONNECTION_FAILED
-            )
+            print(f"Warning: Failed to initialize S3 client: {str(e)}. S3 service disabled.")
+    
+    def _is_s3_configured(self) -> bool:
+        """Check if S3 is properly configured"""
+        return (
+            settings.AWS_ACCESS_KEY_ID and 
+            settings.AWS_SECRET_ACCESS_KEY and 
+            settings.S3_BUCKET_NAME and
+            settings.AWS_REGION
+        )
 
     def _verify_bucket_exists(self):
         """Verify that the S3 bucket exists and is accessible"""
@@ -86,6 +96,13 @@ class S3Service:
         Returns:
             Dict containing upload information
         """
+        if not self.is_available:
+            raise create_http_exception(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                message="S3 service is not available",
+                error_code=ErrorCodes.S3_CONNECTION_FAILED
+            )
+        
         try:
             extra_args = {
                 'ContentType': content_type
@@ -126,6 +143,13 @@ class S3Service:
         Returns:
             File content as bytes
         """
+        if not self.is_available:
+            raise create_http_exception(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                message="S3 service is not available",
+                error_code=ErrorCodes.S3_CONNECTION_FAILED
+            )
+        
         try:
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
             return response['Body'].read()
@@ -155,6 +179,13 @@ class S3Service:
         Returns:
             True if deleted successfully
         """
+        if not self.is_available:
+            raise create_http_exception(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                message="S3 service is not available",
+                error_code=ErrorCodes.S3_CONNECTION_FAILED
+            )
+        
         try:
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
             return True
@@ -177,6 +208,13 @@ class S3Service:
         Returns:
             Presigned URL for file access
         """
+        if not self.is_available:
+            raise create_http_exception(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                message="S3 service is not available",
+                error_code=ErrorCodes.S3_CONNECTION_FAILED
+            )
+        
         try:
             url = self.s3_client.generate_presigned_url(
                 'get_object',
@@ -219,6 +257,9 @@ class S3Service:
         Returns:
             True if file exists, False otherwise
         """
+        if not self.is_available:
+            return False
+        
         try:
             self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
             return True
@@ -241,6 +282,13 @@ class S3Service:
         Returns:
             File metadata dictionary
         """
+        if not self.is_available:
+            raise create_http_exception(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                message="S3 service is not available",
+                error_code=ErrorCodes.S3_CONNECTION_FAILED
+            )
+        
         try:
             response = self.s3_client.head_object(Bucket=self.bucket_name, Key=s3_key)
             return {
@@ -278,6 +326,11 @@ class S3Service:
         """
         # Simple folder structure based on image type only
         return f"{image_type}s/{filename}"
+
+
+    def is_s3_available(self) -> bool:
+        """Check if S3 service is available"""
+        return self.is_available
 
 
 # Service instance
