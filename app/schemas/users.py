@@ -166,7 +166,8 @@ class AreaCoordinatorProfileBase(BaseModel):
     
     # Photo and Document fields
     passport_size_photo: Optional[str] = Field(None, max_length=500)
-    id_proof_document: Optional[str] = Field(None, max_length=500)
+    id_proof_document: Optional[List[str]] = Field(None, description="Array of URLs to ID proof documents")
+    pancard_images: Optional[List[str]] = Field(None, description="Array of URLs to PAN card images")
     address_proof_document: Optional[str] = Field(None, max_length=500)
     
     # Address fields

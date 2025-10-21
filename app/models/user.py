@@ -118,7 +118,8 @@ class AreaCoordinator(Base):
     
     # Photo and Document fields
     passport_size_photo: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="URL to passport size photo")
-    id_proof_document: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="URL to ID proof document")
+    id_proof_document: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to ID proof documents")
+    pancard_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to PAN card images")
     address_proof_document: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="URL to address proof document")
     
     # Address fields
