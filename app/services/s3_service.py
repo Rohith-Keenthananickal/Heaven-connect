@@ -59,23 +59,18 @@ class S3Service:
         except ClientError as e:
             error_code = e.response['Error']['Code']
             if error_code == '404':
-                raise create_http_exception(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    message=f"S3 bucket '{self.bucket_name}' not found",
-                    error_code=ErrorCodes.S3_BUCKET_NOT_FOUND
-                )
+                print(f"Warning: S3 bucket '{self.bucket_name}' not found. S3 service disabled.")
+                self.is_available = False
+                return
             elif error_code == '403':
-                raise create_http_exception(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    message=f"Access denied to S3 bucket '{self.bucket_name}'",
-                    error_code=ErrorCodes.S3_ACCESS_DENIED
-                )
+                print(f"Warning: Access denied to S3 bucket '{self.bucket_name}'. S3 service disabled.")
+                print("Please check your AWS credentials and IAM permissions.")
+                self.is_available = False
+                return
             else:
-                raise create_http_exception(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    message=f"Error accessing S3 bucket: {str(e)}",
-                    error_code=ErrorCodes.S3_CONNECTION_FAILED
-                )
+                print(f"Warning: Error accessing S3 bucket: {str(e)}. S3 service disabled.")
+                self.is_available = False
+                return
 
     async def upload_file(
         self, 

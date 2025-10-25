@@ -121,6 +121,11 @@ class ErrorMessages:
     OTP_EXPIRED = "OTP has expired"
     OTP_INVALID = "Invalid OTP"
     OTP_ALREADY_USED = "OTP has already been used"
+    OTP_SEND_FAILED = "Failed to send OTP"
+    OTP_VERIFICATION_FAILED = "OTP verification failed"
+    OTP_RESEND_FAILED = "Failed to resend OTP"
+    EMAIL_SEND_FAILED = "Failed to send email"
+    USER_INACTIVE = "User account is not active"
     
     # Area Coordinator errors
     AREA_COORDINATOR_NOT_FOUND = "Area coordinator not found"
@@ -201,6 +206,11 @@ class ErrorCodes:
     OTP_EXPIRED = "OTP_EXPIRED"
     OTP_INVALID = "OTP_INVALID"
     OTP_ALREADY_USED = "OTP_ALREADY_USED"
+    OTP_SEND_FAILED = "OTP_SEND_FAILED"
+    OTP_VERIFICATION_FAILED = "OTP_VERIFICATION_FAILED"
+    OTP_RESEND_FAILED = "OTP_RESEND_FAILED"
+    EMAIL_SEND_FAILED = "EMAIL_SEND_FAILED"
+    USER_INACTIVE = "USER_INACTIVE"
     
     # Area Coordinator errors
     AREA_COORDINATOR_NOT_FOUND = "AREA_COORDINATOR_NOT_FOUND"

@@ -12,6 +12,12 @@ from app.utils.error_handler import (
 from app.utils.atp_uuid import generate_atp_uuid
 from app.schemas.errors import ErrorCodes, ErrorMessages
 from datetime import datetime
+from app.services.email_service import email_service
+import random
+import string
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class UsersService(BaseService[User, UserCreate, UserUpdate]):
@@ -1235,6 +1241,296 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             "created_at": bank_details.created_at,
             "updated_at": bank_details.updated_at
         }
+
+    # Email OTP Authentication methods
+    async def send_email_otp(self, db: AsyncSession, email: str) -> dict:
+        """Send OTP to user's email for login"""
+        try:
+            # Check if user exists with this email
+            user = await self.get_by_email(db, email)
+            if not user:
+                raise create_http_exception(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message="User with this email not found",
+                    error_code=ErrorCodes.USER_NOT_FOUND
+                )
+            
+            # Check if user is active
+            if user["status"] != UserStatus.ACTIVE:
+                raise create_http_exception(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message="User account is not active",
+                    error_code=ErrorCodes.USER_INACTIVE
+                )
+            
+            # Generate 6-digit OTP
+            otp_code = self._generate_otp()
+            
+            # Store OTP in database (you might want to create an OTP table for this)
+            # For now, we'll use a simple approach with the existing OTPVerification table
+            from app.models.user import OTPVerification
+            from datetime import datetime, timedelta
+            
+            # Delete any existing OTP for this email
+            existing_otp = await db.execute(
+                select(OTPVerification).where(OTPVerification.email == email)
+            )
+            existing_otp = existing_otp.scalar_one_or_none()
+            if existing_otp:
+                await db.delete(existing_otp)
+            
+            # Create new OTP record
+            otp_record = OTPVerification(
+                email=email,
+                otp=otp_code,
+                expires_at=datetime.utcnow() + timedelta(minutes=10),  # OTP expires in 10 minutes
+                is_used=False
+            )
+            db.add(otp_record)
+            
+            # Send OTP email first (before committing to database)
+            email_sent = await email_service.send_login_otp_email(
+                db=db,
+                email=email,
+                otp_code=otp_code,
+                user_name=user["full_name"],
+                expires_in_minutes=10
+            )
+            
+            # Only commit if email was sent successfully
+            if email_sent:
+                await db.commit()
+            else:
+                await db.rollback()
+            
+            if not email_sent:
+                raise create_http_exception(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    message="Failed to send OTP email",
+                    error_code=ErrorCodes.EMAIL_SEND_FAILED
+                )
+            
+            return {
+                "message": "OTP sent successfully to your email",
+                "email": email,
+                "expires_in_minutes": 10
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to send email OTP: {str(e)}",
+                error_code=ErrorCodes.OTP_SEND_FAILED
+            )
+
+    async def verify_email_otp(self, db: AsyncSession, email: str, otp_code: str) -> Optional[dict]:
+        """Verify email OTP and authenticate user"""
+        try:
+            # Get OTP record from database
+            from app.models.user import OTPVerification
+            from datetime import datetime
+            
+            otp_result = await db.execute(
+                select(OTPVerification).where(
+                    OTPVerification.email == email,
+                    OTPVerification.otp == otp_code,
+                    OTPVerification.is_used == False,
+                    OTPVerification.expires_at > datetime.utcnow()
+                )
+            )
+            otp_record = otp_result.scalar_one_or_none()
+            
+            if not otp_record:
+                raise create_http_exception(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message="Invalid or expired OTP",
+                    error_code=ErrorCodes.INVALID_OTP
+                )
+            
+            # Mark OTP as used
+            otp_record.is_used = True
+            await db.commit()
+            
+            # Mark email as verified
+            await self.mark_email_verified_on_otp_success(db, email)
+            
+            # Get user and authenticate
+            user = await self.get_by_email(db, email)
+            if not user:
+                raise create_http_exception(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message="User not found",
+                    error_code=ErrorCodes.USER_NOT_FOUND
+                )
+            
+            # Check if user is active
+            if user["status"] != UserStatus.ACTIVE:
+                raise create_http_exception(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message="User account is not active",
+                    error_code=ErrorCodes.USER_INACTIVE
+                )
+            
+            return user
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to verify email OTP: {str(e)}",
+                error_code=ErrorCodes.OTP_VERIFICATION_FAILED
+            )
+
+    async def update_verification_status(self, db: AsyncSession, user_id: int, verification_type: str, verified: bool) -> dict:
+        """Update verification status for a user (email or phone)"""
+        try:
+            # Get user
+            user = await self.get(db, id=user_id)
+            if not user:
+                raise create_http_exception(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message="User not found",
+                    error_code=ErrorCodes.USER_NOT_FOUND
+                )
+            
+            # Update verification status based on type
+            if verification_type.upper() == "EMAIL":
+                user.email_verified = verified
+                field_name = "email_verified"
+            elif verification_type.upper() == "PHONE":
+                user.phone_verified = verified
+                field_name = "phone_verified"
+            else:
+                raise create_http_exception(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message="Invalid verification type. Must be 'EMAIL' or 'PHONE'",
+                    error_code=ErrorCodes.BAD_REQUEST
+                )
+            
+            await db.commit()
+            await db.refresh(user)
+            
+            return {
+                "user_id": user_id,
+                "verification_type": verification_type.upper(),
+                field_name: verified,
+                "updated_at": user.updated_at
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to update {verification_type.lower()} verification status: {str(e)}",
+                error_code=ErrorCodes.INTERNAL_SERVER_ERROR
+            )
+
+    async def mark_email_verified_on_otp_success(self, db: AsyncSession, email: str) -> None:
+        """Mark email as verified when OTP verification succeeds"""
+        try:
+            user = await self.get_by_email(db, email)
+            if user:
+                await self.update_verification_status(db, user["id"], "EMAIL", True)
+        except Exception as e:
+            logger.error(f"Failed to mark email as verified: {e}")
+
+    async def mark_phone_verified_on_otp_success(self, db: AsyncSession, phone_number: str) -> None:
+        """Mark phone as verified when OTP verification succeeds"""
+        try:
+            user = await self.get_by_phone(db, phone_number)
+            if user:
+                await self.update_verification_status(db, user["id"], "PHONE", True)
+        except Exception as e:
+            logger.error(f"Failed to mark phone as verified: {e}")
+
+    async def resend_email_otp(self, db: AsyncSession, email: str) -> dict:
+        """Resend OTP to user's email"""
+        try:
+            # Check if user exists
+            user = await self.get_by_email(db, email)
+            if not user:
+                raise create_http_exception(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    message="User with this email not found",
+                    error_code=ErrorCodes.USER_NOT_FOUND
+                )
+            
+            # Check if user is active
+            if user["status"] != UserStatus.ACTIVE:
+                raise create_http_exception(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    message="User account is not active",
+                    error_code=ErrorCodes.USER_INACTIVE
+                )
+            
+            # Generate new OTP
+            otp_code = self._generate_otp()
+            
+            # Update or create OTP record
+            from app.models.user import OTPVerification
+            from datetime import datetime, timedelta
+            
+            # Delete any existing OTP for this email
+            existing_otp = await db.execute(
+                select(OTPVerification).where(OTPVerification.email == email)
+            )
+            existing_otp = existing_otp.scalar_one_or_none()
+            if existing_otp:
+                await db.delete(existing_otp)
+            
+            # Create new OTP record
+            otp_record = OTPVerification(
+                email=email,
+                otp=otp_code,
+                expires_at=datetime.utcnow() + timedelta(minutes=10),
+                is_used=False
+            )
+            db.add(otp_record)
+            
+            # Send OTP email first (before committing to database)
+            email_sent = await email_service.send_login_otp_email(
+                db=db,
+                email=email,
+                otp_code=otp_code,
+                user_name=user["full_name"],
+                expires_in_minutes=10
+            )
+            
+            # Only commit if email was sent successfully
+            if email_sent:
+                await db.commit()
+            else:
+                await db.rollback()
+            
+            if not email_sent:
+                raise create_http_exception(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    message="Failed to send OTP email",
+                    error_code=ErrorCodes.EMAIL_SEND_FAILED
+                )
+            
+            return {
+                "message": "OTP resent successfully to your email",
+                "email": email,
+                "expires_in_minutes": 10
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_http_exception(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                message=f"Failed to resend email OTP: {str(e)}",
+                error_code=ErrorCodes.OTP_RESEND_FAILED
+            )
+
+    def _generate_otp(self, length: int = 6) -> str:
+        """Generate a random OTP code"""
+        return ''.join(random.choices(string.digits, k=length))
 
 
 # Service instance

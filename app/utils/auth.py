@@ -17,12 +17,33 @@ security = HTTPBearer()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
+    """Verify a password against its hash with bcrypt 72-byte limit handling"""
+    # Apply the same truncation logic as in get_password_hash for consistency
+    password_bytes = plain_password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate to 72 bytes and decode back to string
+        truncated_bytes = password_bytes[:72]
+        # Find the last complete character boundary
+        while truncated_bytes and truncated_bytes[-1] & 0x80 and not (truncated_bytes[-1] & 0x40):
+            truncated_bytes = truncated_bytes[:-1]
+        plain_password = truncated_bytes.decode('utf-8', errors='ignore')
+    
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password"""
+    """Hash a password with bcrypt 72-byte limit handling"""
+    # bcrypt has a 72-byte limit, so we need to truncate if necessary
+    # Convert to bytes to check actual byte length, not character count
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate to 72 bytes and decode back to string
+        truncated_bytes = password_bytes[:72]
+        # Find the last complete character boundary
+        while truncated_bytes and truncated_bytes[-1] & 0x80 and not (truncated_bytes[-1] & 0x40):
+            truncated_bytes = truncated_bytes[:-1]
+        password = truncated_bytes.decode('utf-8', errors='ignore')
+    
     return pwd_context.hash(password)
 
 

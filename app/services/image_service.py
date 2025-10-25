@@ -261,11 +261,19 @@ class ImageService:
             }
             
         except Exception as e:
-            raise create_http_exception(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                message=f"Failed to process and upload image: {str(e)}",
-                error_code=ErrorCodes.IMAGE_PROCESSING_FAILED
-            )
+            # Check if it's an S3 service unavailable error
+            if "S3 service is not available" in str(e):
+                raise create_http_exception(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    message="S3 service is not available. Please check your AWS configuration and try again later.",
+                    error_code=ErrorCodes.S3_CONNECTION_FAILED
+                )
+            else:
+                raise create_http_exception(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    message=f"Failed to process and upload image: {str(e)}",
+                    error_code=ErrorCodes.IMAGE_PROCESSING_FAILED
+                )
 
 
     def get_image_url(self, s3_key: str, expires_in: int = 3600) -> str:

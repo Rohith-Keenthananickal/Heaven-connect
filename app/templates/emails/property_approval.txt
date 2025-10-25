@@ -1,0 +1,15 @@
+Property {status_text}
+
+Hello {user_name},
+
+{message}
+
+Property: {property_name}
+Status: {status_text}
+
+Thank you for using Heaven Connect!
+
+Best regards,
+Heaven Connect Team
+
+

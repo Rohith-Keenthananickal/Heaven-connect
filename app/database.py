@@ -60,3 +60,8 @@ def get_sync_db():
         yield session
     finally:
         session.close()
+
+
+def get_async_engine():
+    """Get the async database engine"""
+    return engine

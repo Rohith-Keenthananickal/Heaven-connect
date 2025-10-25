@@ -9,7 +9,7 @@ from app.schemas.users import (
     AreaCoordinatorApprovalRequest, AreaCoordinatorApprovalResponse,
     UserCreateAPIResponse, UserListAPIResponse, UserGetAPIResponse, UserUpdateAPIResponse,
     UserStatusUpdateAPIResponse, UserDeleteAPIResponse, UserProfileGetAPIResponse,
-    UserTypeListAPIResponse
+    UserTypeListAPIResponse, VerificationStatusUpdate, VerificationStatusResponse
 )
 from app.services.users_service import users_service
 
@@ -522,4 +522,28 @@ async def verify_bank_details(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to verify bank details: {str(e)}"
+        )
+
+
+@router.patch("/{user_id}/verification", response_model=VerificationStatusResponse)
+async def update_verification_status(
+    user_id: int,
+    verification_data: VerificationStatusUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update verification status for a user (email or phone)"""
+    try:
+        result = await users_service.update_verification_status(
+            db, user_id, verification_data.verification_type.value, verification_data.verified
+        )
+        return VerificationStatusResponse(
+            data=result,
+            message=f"{verification_data.verification_type.value} verification status updated successfully"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update {verification_data.verification_type.value.lower()} verification status: {str(e)}"
         )

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List, Union
 from datetime import datetime, date
+import enum
 from app.models.user import AuthProvider, UserType, UserStatus, ApprovalStatus
 from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
 
@@ -183,6 +184,16 @@ class AreaCoordinatorProfileBase(BaseModel):
     latitude: Optional[float] = Field(None, ge=-90, le=90)
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     
+    # Business information
+    business_name: Optional[str] = Field(None, max_length=200, description="Business name of the area coordinator")
+    
+    # Local body information - connected to existing location tables
+    local_body_district_id: Optional[int] = Field(None, description="Reference to districts table")
+    local_body_grama_panchayat_id: Optional[int] = Field(None, description="Reference to grama_panchayats table")
+    local_body_corporation_id: Optional[int] = Field(None, description="Reference to corporations table")
+    local_body_municipality_id: Optional[int] = Field(None, description="Reference to municipalities table")
+    local_body_ward: Optional[str] = Field(None, max_length=100, description="Local body ward")
+    
     # Additional fields
     emergency_contact: Optional[str] = Field(None, max_length=20)
     emergency_contact_name: Optional[str] = Field(None, max_length=100)
@@ -230,7 +241,10 @@ class UserBase(BaseModel):
     auth_provider: AuthProvider
     user_type: UserType = UserType.GUEST
     email: Optional[EmailStr] = None
+    email_verified: bool = False
     phone_number: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
+    country_code: Optional[str] = Field(None, max_length=5, description="Country code like +91, +1, etc.")
+    phone_verified: bool = False
     full_name: str = Field(..., min_length=1, max_length=200)
     dob: Optional[date] = None
     profile_image: Optional[str] = Field(None, max_length=500)
@@ -250,7 +264,10 @@ class UserUpdate(BaseModel):
     auth_provider: Optional[AuthProvider] = None
     user_type: Optional[UserType] = None
     email: Optional[EmailStr] = None
+    email_verified: Optional[bool] = None
     phone_number: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
+    country_code: Optional[str] = Field(None, max_length=5, description="Country code like +91, +1, etc.")
+    phone_verified: Optional[bool] = None
     full_name: Optional[str] = Field(..., min_length=1, max_length=200)
     dob: Optional[date] = None
     profile_image: Optional[str] = Field(None, max_length=500)
@@ -266,12 +283,34 @@ class UserStatusUpdate(BaseModel):
     status: UserStatus = Field(..., description="New user status (ACTIVE, BLOCKED, DELETED)")
 
 
+class VerificationType(str, enum.Enum):
+    """Verification type enumeration"""
+    EMAIL = "EMAIL"
+    PHONE = "PHONE"
+
+
+class VerificationStatusUpdate(BaseModel):
+    """Schema for updating verification status"""
+    verification_type: VerificationType = Field(..., description="Type of verification (EMAIL or PHONE)")
+    verified: bool = Field(..., description="Verification status")
+
+
+class VerificationStatusResponse(BaseModel):
+    """Response schema for verification status updates"""
+    status: str = "success"
+    data: dict
+    message: str
+
+
 class UserResponse(BaseModel):
     id: int
     auth_provider: AuthProvider
     user_type: UserType
     email: Optional[str]
+    email_verified: bool
     phone_number: Optional[str]
+    country_code: Optional[str]
+    phone_verified: bool
     full_name: str
     dob: Optional[date]
     profile_image: Optional[str]
@@ -293,7 +332,10 @@ class UserListResponse(BaseModel):
     auth_provider: AuthProvider
     user_type: UserType
     email: Optional[str]
+    email_verified: bool
     phone_number: Optional[str]
+    country_code: Optional[str]
+    phone_verified: bool
     full_name: str
     dob: Optional[date]
     profile_image: Optional[str]

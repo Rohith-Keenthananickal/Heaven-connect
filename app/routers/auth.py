@@ -10,6 +10,7 @@ from app.schemas.auth import (
     MobileOTPLoginRequest,
     GoogleLoginRequest
 )
+from pydantic import BaseModel, EmailStr
 from app.services.users_service import users_service
 from app.utils.auth import create_access_token
 from app.utils.error_handler import (
@@ -22,6 +23,32 @@ from app.schemas.errors import ErrorCodes, ErrorMessages
 from datetime import timedelta
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+# Email OTP Schemas
+class EmailOTPRequest(BaseModel):
+    """Request schema for sending email OTP"""
+    email: EmailStr
+
+
+class EmailOTPVerifyRequest(BaseModel):
+    """Request schema for verifying email OTP"""
+    email: EmailStr
+    otp_code: str
+
+
+class EmailOTPResponse(BaseModel):
+    """Response schema for email OTP operations"""
+    message: str
+    email: str
+    expires_in_minutes: int
+
+
+class EmailOTPLoginResponse(BaseModel):
+    """Response schema for email OTP login"""
+    status: str = "success"
+    data: TokenResponse
+    message: str
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -325,4 +352,132 @@ async def login_with_google(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Google login failed: {str(e)}"
+        )
+
+
+# Email OTP Authentication Endpoints
+@router.post("/send-email-otp", response_model=EmailOTPResponse)
+async def send_email_otp(
+    request: Request,
+    otp_request: EmailOTPRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Send OTP to user's email for login"""
+    try:
+        request_info = extract_request_info(request)
+        
+        result = await users_service.send_email_otp(db, otp_request.email)
+        
+        return EmailOTPResponse(
+            message=result["message"],
+            email=result["email"],
+            expires_in_minutes=result["expires_in_minutes"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        request_info = extract_request_info(request)
+        raise create_http_exception(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to send email OTP: {str(e)}",
+            error_code=ErrorCodes.OTP_SEND_FAILED,
+            path=request_info["path"],
+            method=request_info["method"],
+            trace_id=request_info["trace_id"]
+        )
+
+
+@router.post("/verify-email-otp", response_model=EmailOTPLoginResponse)
+async def verify_email_otp(
+    request: Request,
+    verify_request: EmailOTPVerifyRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Verify email OTP and login user"""
+    try:
+        request_info = extract_request_info(request)
+        
+        # Verify OTP and get user
+        user = await users_service.verify_email_otp(
+            db, 
+            verify_request.email, 
+            verify_request.otp_code
+        )
+        
+        if not user:
+            raise create_authentication_http_exception(
+                message="Invalid or expired OTP",
+                auth_type="otp",
+                path=request_info["path"],
+                method=request_info["method"],
+                trace_id=request_info["trace_id"]
+            )
+        
+        # Create access token
+        token_data = {
+            "sub": str(user["id"]),
+            "user_type": user["user_type"].value,
+            "auth_provider": user["auth_provider"].value
+        }
+        
+        access_token = create_access_token(
+            data=token_data,
+            expires_delta=timedelta(minutes=30)  # 30 minutes expiry
+        )
+        
+        token_response = TokenResponse(
+            access_token=access_token,
+            expires_in=30 * 60,  # 30 minutes in seconds
+            user=user
+        )
+        
+        return EmailOTPLoginResponse(
+            data=token_response,
+            message="Login successful with email OTP"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        request_info = extract_request_info(request)
+        raise create_http_exception(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to verify email OTP: {str(e)}",
+            error_code=ErrorCodes.OTP_VERIFICATION_FAILED,
+            path=request_info["path"],
+            method=request_info["method"],
+            trace_id=request_info["trace_id"]
+        )
+
+
+@router.post("/resend-email-otp", response_model=EmailOTPResponse)
+async def resend_email_otp(
+    request: Request,
+    otp_request: EmailOTPRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Resend OTP to user's email"""
+    try:
+        request_info = extract_request_info(request)
+        
+        result = await users_service.resend_email_otp(db, otp_request.email)
+        
+        return EmailOTPResponse(
+            message=result["message"],
+            email=result["email"],
+            expires_in_minutes=result["expires_in_minutes"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        request_info = extract_request_info(request)
+        raise create_http_exception(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to resend email OTP: {str(e)}",
+            error_code=ErrorCodes.OTP_RESEND_FAILED,
+            path=request_info["path"],
+            method=request_info["method"],
+            trace_id=request_info["trace_id"]
         )

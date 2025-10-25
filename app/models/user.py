@@ -1,11 +1,12 @@
 from sqlalchemy import Integer, String, DateTime, Boolean, Date, Enum, ForeignKey, JSON, Float
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import Base
 from typing import Optional
+from app.database import Base
 import enum
 
 from app.models.property import Property
+from app.models.location import District, GramaPanchayat, Corporation, Municipality
 
 
 class AuthProvider(str, enum.Enum):
@@ -40,7 +41,10 @@ class User(Base):
     auth_provider: Mapped[AuthProvider] = mapped_column(Enum(AuthProvider), nullable=False)
     user_type: Mapped[UserType] = mapped_column(Enum(UserType), default=UserType.GUEST, nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     phone_number: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True, nullable=True)
+    country_code: Mapped[Optional[str]] = mapped_column(String(5), nullable=True, comment="Country code like +91, +1, etc.")
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     dob: Mapped[Optional[Date]] = mapped_column(Date, nullable=True)
@@ -135,6 +139,16 @@ class AreaCoordinator(Base):
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
+    # Business information
+    business_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Business name of the area coordinator")
+    
+    # Local body information - connected to existing location tables
+    local_body_district_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("districts.id"), nullable=True, comment="Reference to districts table")
+    local_body_grama_panchayat_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("grama_panchayats.id"), nullable=True, comment="Reference to grama_panchayats table")
+    local_body_corporation_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("corporations.id"), nullable=True, comment="Reference to corporations table")
+    local_body_municipality_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("municipalities.id"), nullable=True, comment="Reference to municipalities table")
+    local_body_ward: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Local body ward")
+    
     # Additional fields
     emergency_contact: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     emergency_contact_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -144,6 +158,12 @@ class AreaCoordinator(Base):
     user: Mapped["User"] = relationship("User", back_populates="area_coordinator_profile", foreign_keys=[id])
     bank_details: Mapped[Optional["BankDetails"]] = relationship("BankDetails", back_populates="area_coordinator", uselist=False)
     admin_approver: Mapped[Optional["User"]] = relationship("User", foreign_keys=[approved_by])
+    
+    # Local body relationships
+    local_body_district: Mapped[Optional["District"]] = relationship("District", foreign_keys=[local_body_district_id])
+    local_body_grama_panchayat: Mapped[Optional["GramaPanchayat"]] = relationship("GramaPanchayat", foreign_keys=[local_body_grama_panchayat_id])
+    local_body_corporation: Mapped[Optional["Corporation"]] = relationship("Corporation", foreign_keys=[local_body_corporation_id])
+    local_body_municipality: Mapped[Optional["Municipality"]] = relationship("Municipality", foreign_keys=[local_body_municipality_id])
 
 
 class BankDetails(Base):
@@ -182,7 +202,8 @@ class OTPVerification(Base):
     __tablename__ = "otp_verifications"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    phone_number: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    phone_number: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     otp: Mapped[str] = mapped_column(String(6), nullable=False)
     expires_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_used: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -49,9 +49,19 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_REGION: str = "us-east-1"
     S3_BUCKET_NAME: str = ""
-    S3_ENDPOINT_URL: str = ""  # Optional, for custom S3-compatible services
+    S3_ENDPOINT_URL: str = ""
     S3_USE_SSL: bool = True
     S3_SIGNATURE_VERSION: str = "s3v4"
+    
+    # Email settings (Zoho)
+    ZOHO_EMAIL: str = ""
+    ZOHO_APP_PASSWORD: str = ""
+    ZOHO_SMTP_SERVER: str = "smtp.zoho.com"
+    ZOHO_SMTP_PORT: int = 587
+    ZOHO_FROM_NAME: str = "Heaven Connect"
+    
+    # Frontend URL for email links
+    FRONTEND_URL: str = "http://localhost:3000"
     
     def get_allowed_extensions(self) -> List[str]:
         extensions_str = self.ALLOWED_IMAGE_EXTENSIONS or self.ALLOWED_IMAGE_EXTENSIONS_STR
