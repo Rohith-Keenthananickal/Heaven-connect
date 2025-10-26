@@ -2,14 +2,18 @@ from sqlalchemy import Integer, String, DateTime, Boolean, Date, ForeignKey, JSO
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, TYPE_CHECKING
 import enum
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class PropertyClassification(str, enum.Enum):
     SILVER = "SILVER"
     GOLD = "GOLD" 
     DIAMOND = "DIAMOND"
+    UNCLASSIFIED = "UNCLASSIFIED"
 
 
 class PropertyStatus(str, enum.Enum):
@@ -35,6 +39,32 @@ class PhotoCategory(str, enum.Enum):
     DINING = "DINING"
     COMMON_AREA = "COMMON_AREA"
     AMENITIES = "AMENITIES"
+
+
+class BedType(str, enum.Enum):
+    SINGLE = "SINGLE"
+    DOUBLE = "DOUBLE"
+    QUEEN = "QUEEN"
+    KING = "KING"
+    TWIN = "TWIN"
+    FULL = "FULL"
+    CALIFORNIA_KING = "CALIFORNIA_KING"
+    SOFA_BED = "SOFA_BED"
+    BUNK_BED = "BUNK_BED"
+    CUSTOM = "CUSTOM"
+
+
+class RoomView(str, enum.Enum):
+    GARDEN = "GARDEN"
+    POOL = "POOL"
+    SEA_FACING = "SEA_FACING"
+    MOUNTAIN_VIEW = "MOUNTAIN_VIEW"
+    CITY_VIEW = "CITY_VIEW"
+    STREET_VIEW = "STREET_VIEW"
+    COURTYARD = "COURTYARD"
+    BALCONY = "BALCONY"
+    NO_VIEW = "NO_VIEW"
+    PARTIAL_VIEW = "PARTIAL_VIEW"
 
 
 class PropertyType(Base):
@@ -63,7 +93,23 @@ class Property(Base):
     id_proof_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     id_proof_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     certificate_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    # Tourism certificate fields
+    tourism_certificate_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Tourism department certificate number")
+    tourism_certificate_issued_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Authority that issued the tourism certificate")
+    tourism_certificate_photos: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to tourism certificate photos")
+    
+    # Trade license fields
     trade_license_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    trade_license_images: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to trade license images")
+    
+    # Property image fields
+    cover_image: Mapped[Optional[str]] = mapped_column(String(500), nullable=True, comment="Main cover image URL for the property")
+    exterior_images: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to exterior images")
+    bedroom_images: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to bedroom images")
+    bathroom_images: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to bathroom images")
+    living_dining_images: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to living and dining room images")
+    
     classification: Mapped[PropertyClassification] = mapped_column(Enum(PropertyClassification), default=PropertyClassification.SILVER)
     status: Mapped[PropertyStatus] = mapped_column(Enum(PropertyStatus), default=PropertyStatus.ACTIVE)
     progress_step: Mapped[int] = mapped_column(Integer, default=1)  # Current onboarding step (1-9)
@@ -90,6 +136,9 @@ class Room(Base):
     property_id: Mapped[int] = mapped_column(Integer, ForeignKey("properties.id"), nullable=False)
     room_type: Mapped[str] = mapped_column(String(100), nullable=False)
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    max_occupancy: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="Maximum number of guests that can occupy this room")
+    bed_type: Mapped[BedType] = mapped_column(Enum(BedType), nullable=False, default=BedType.SINGLE, comment="Type of bed in the room")
+    view: Mapped[RoomView] = mapped_column(Enum(RoomView), nullable=False, default=RoomView.NO_VIEW, comment="View from the room")
     amenities: Mapped[Optional[List[Any]]] = mapped_column(JSON, nullable=True)  # Store as JSON array
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -102,14 +151,18 @@ class Facility(Base):
     __tablename__ = "facilities"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    property_id: Mapped[int] = mapped_column(Integer, ForeignKey("properties.id"), nullable=False)
+    facility_name: Mapped[str] = mapped_column(String(200), nullable=False, comment="Name of the facility")
+    facility_description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True, comment="Description of the facility")
+    property_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("properties.id"), nullable=True, comment="Optional property ID for property-specific facilities")
     category: Mapped[FacilityCategory] = mapped_column(Enum(FacilityCategory), nullable=False)
+    property_classification: Mapped[Optional[PropertyClassification]] = mapped_column(Enum(PropertyClassification), nullable=True, comment="Property classification this facility applies to (for common facilities)")
     details: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)  # Store facility details as JSON
+    is_common: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether this is a common facility available to all properties")
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
-    property: Mapped["Property"] = relationship("Property", back_populates="facilities")
+    property: Mapped[Optional["Property"]] = relationship("Property", back_populates="facilities")
 
 
 class PropertyPhoto(Base):

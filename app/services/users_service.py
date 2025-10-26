@@ -169,7 +169,9 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         elif user.user_type == UserType.HOST and user.host_profile:
             user_dict["host_profile"] = {
                 "id": user.host_profile.id,
-                "license_number": user.host_profile.license_number,
+                "id_proof_type": user.host_profile.id_proof_type,
+                "id_proof_number": user.host_profile.id_proof_number,
+                "id_proof_images": user.host_profile.id_proof_images,
                 "experience_years": user.host_profile.experience_years,
                 "company_name": user.host_profile.company_name
             }

@@ -87,13 +87,17 @@ class GuestProfileResponse(GuestProfileBase):
 
 
 class HostProfileBase(BaseModel):
-    license_number: Optional[str] = Field(None, max_length=100)
+    id_proof_type: Optional[str] = Field(None, max_length=50, description="Aadhar, PAN, Driving License, etc.")
+    id_proof_number: Optional[str] = Field(None, max_length=100)
+    id_proof_images: Optional[List[str]] = Field(None, description="Array of URLs to ID proof images")
     experience_years: Optional[int] = Field(None, ge=0, le=50)
     company_name: Optional[str] = Field(None, max_length=200)
 
 
 class HostProfileCreate(HostProfileBase):
-    license_number: str = Field(..., max_length=100)
+    id_proof_type: str = Field(..., max_length=50, description="Aadhar, PAN, Driving License, etc.")
+    id_proof_number: str = Field(..., max_length=100)
+    id_proof_images: List[str] = Field(..., description="Array of URLs to ID proof images")
     experience_years: int = Field(..., ge=0, le=50)
 
 

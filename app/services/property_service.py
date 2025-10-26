@@ -126,6 +126,20 @@ class PropertyService:
             property_name=profile_data.property_name,
             alternate_phone=profile_data.alternate_phone,
             property_type_id=profile_data.property_type_id,
+            id_proof_type=profile_data.id_proof_type,
+            id_proof_url=profile_data.id_proof_url,
+            certificate_number=profile_data.certificate_number,
+            tourism_certificate_number=profile_data.tourism_certificate_number,
+            tourism_certificate_issued_by=profile_data.tourism_certificate_issued_by,
+            tourism_certificate_photos=profile_data.tourism_certificate_photos,
+            trade_license_number=profile_data.trade_license_number,
+            trade_license_images=profile_data.trade_license_images,
+            # Property image fields
+            cover_image=profile_data.cover_image,
+            exterior_images=profile_data.exterior_images,
+            bedroom_images=profile_data.bedroom_images,
+            bathroom_images=profile_data.bathroom_images,
+            living_dining_images=profile_data.living_dining_images,
             status=profile_data.status,
             progress_step=2  # Move to step 2
         )
@@ -640,4 +654,43 @@ class PropertyService:
             raise create_server_error_http_exception(
                 message=f"Failed to delete property: {str(e)}",
                 component="property_soft_delete"
+            )
+
+    @staticmethod
+    def update_property_images(
+        db: Session, 
+        property_id: int, 
+        cover_image: Optional[str] = None,
+        exterior_images: Optional[List[str]] = None,
+        bedroom_images: Optional[List[str]] = None,
+        bathroom_images: Optional[List[str]] = None,
+        living_dining_images: Optional[List[str]] = None
+    ) -> Optional[Property]:
+        """Update property images"""
+        try:
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                return None
+            
+            # Update image fields if provided
+            if cover_image is not None:
+                property_obj.cover_image = cover_image
+            if exterior_images is not None:
+                property_obj.exterior_images = exterior_images
+            if bedroom_images is not None:
+                property_obj.bedroom_images = bedroom_images
+            if bathroom_images is not None:
+                property_obj.bathroom_images = bathroom_images
+            if living_dining_images is not None:
+                property_obj.living_dining_images = living_dining_images
+            
+            db.commit()
+            db.refresh(property_obj)
+            return property_obj
+            
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to update property images: {str(e)}",
+                component="property_images_update"
             ) 

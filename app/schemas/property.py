@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
-from app.models.property import PropertyClassification, PropertyStatus, FacilityCategory, PhotoCategory
+from app.models.property import PropertyClassification, PropertyStatus, FacilityCategory, PhotoCategory, BedType, RoomView
 from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
 
 
@@ -84,13 +84,27 @@ class PropertyBase(BaseModel):
     id_proof_type: Optional[str] = Field(None, max_length=50, description="Type of ID proof")
     id_proof_url: Optional[str] = Field(None, max_length=500, description="URL of the ID proof document")
     certificate_number: Optional[str] = Field(None, max_length=100, description="Property certificate number")
+    
+    # Tourism certificate fields
+    tourism_certificate_number: Optional[str] = Field(None, max_length=100, description="Tourism department certificate number")
+    tourism_certificate_issued_by: Optional[str] = Field(None, max_length=200, description="Authority that issued the tourism certificate")
+    tourism_certificate_photos: Optional[List[str]] = Field(None, description="Array of URLs to tourism certificate photos")
+    
+    # Trade license fields
     trade_license_number: Optional[str] = Field(None, max_length=100, description="Trade license number")
+    trade_license_images: Optional[List[str]] = Field(None, description="Array of URLs to trade license images")
+    
+    # Property image fields
+    cover_image: Optional[str] = Field(None, max_length=500, description="Main cover image URL for the property")
+    exterior_images: Optional[List[str]] = Field(None, description="Array of URLs to exterior images")
+    bedroom_images: Optional[List[str]] = Field(None, description="Array of URLs to bedroom images")
+    bathroom_images: Optional[List[str]] = Field(None, description="Array of URLs to bathroom images")
+    living_dining_images: Optional[List[str]] = Field(None, description="Array of URLs to living and dining room images")
+    
     classification: PropertyClassification = Field(PropertyClassification.SILVER, description="Property classification")
     status: PropertyStatus = Field(PropertyStatus.ACTIVE, description="Property status")
     progress_step: int = Field(1, ge=1, le=10, description="Current progress step")
     is_verified: bool = Field(False, description="Whether the property is verified")
-    cover_image_url: Optional[str] = Field(None, max_length=500, description="URL of the property cover image")
-    additional_images: Optional[List[str]] = Field([], max_items=20, description="List of URLs for additional property images")
 
 
 class PropertyCreate(PropertyBase):
@@ -105,13 +119,27 @@ class PropertyProfileCreate(BaseModel):
     id_proof_type: Optional[str] = Field(None, min_length=2, max_length=100)
     id_proof_url: Optional[str] = Field(None, max_length=500)
     certificate_number: Optional[str] = Field(None, max_length=100)
-    trade_license_number: Optional[str] = Field(None, max_length=100)
+    
+    # Tourism certificate fields
+    tourism_certificate_number: Optional[str] = Field(None, max_length=100, description="Tourism department certificate number")
+    tourism_certificate_issued_by: Optional[str] = Field(None, max_length=200, description="Authority that issued the tourism certificate")
+    tourism_certificate_photos: Optional[List[str]] = Field(None, description="Array of URLs to tourism certificate photos")
+    
+    # Trade license fields
+    trade_license_number: Optional[str] = Field(None, max_length=100, description="Trade license number")
+    trade_license_images: Optional[List[str]] = Field(None, description="Array of URLs to trade license images")
+    
+    # Property image fields
+    cover_image: Optional[str] = Field(None, max_length=500, description="Main cover image URL for the property")
+    exterior_images: Optional[List[str]] = Field(None, description="Array of URLs to exterior images")
+    bedroom_images: Optional[List[str]] = Field(None, description="Array of URLs to bedroom images")
+    bathroom_images: Optional[List[str]] = Field(None, description="Array of URLs to bathroom images")
+    living_dining_images: Optional[List[str]] = Field(None, description="Array of URLs to living and dining room images")
+    
     classification: PropertyClassification = PropertyClassification.SILVER
     status: PropertyStatus = PropertyStatus.ACTIVE
     progress_step: int = Field(1, ge=1, le=9)
     is_verified: bool = False
-    cover_image_url: Optional[str] = Field(None, max_length=500, description="URL of the property cover image")
-    additional_images: Optional[List[str]] = Field([], max_items=20, description="List of URLs for additional property images")
 
 
 class PropertyProfileResponse(BaseModel):
@@ -125,8 +153,14 @@ class PropertyProfileResponse(BaseModel):
     status: PropertyStatus
     progress_step: int
     is_verified: bool
-    cover_image_url: Optional[str]
-    additional_images: Optional[List[str]]
+    
+    # Property image fields
+    cover_image: Optional[str]
+    exterior_images: Optional[List[str]]
+    bedroom_images: Optional[List[str]]
+    bathroom_images: Optional[List[str]]
+    living_dining_images: Optional[List[str]]
+    
     created_at: datetime
     updated_at: datetime
 
@@ -145,13 +179,27 @@ class PropertyResponse(BaseModel):
     id_proof_type: Optional[str]
     id_proof_url: Optional[str]
     certificate_number: Optional[str]
+    
+    # Tourism certificate fields
+    tourism_certificate_number: Optional[str]
+    tourism_certificate_issued_by: Optional[str]
+    tourism_certificate_photos: Optional[List[str]]
+    
+    # Trade license fields
     trade_license_number: Optional[str]
+    trade_license_images: Optional[List[str]]
+    
+    # Property image fields
+    cover_image: Optional[str]
+    exterior_images: Optional[List[str]]
+    bedroom_images: Optional[List[str]]
+    bathroom_images: Optional[List[str]]
+    living_dining_images: Optional[List[str]]
+    
     classification: PropertyClassification
     status: PropertyStatus
     progress_step: int
     is_verified: bool
-    cover_image_url: Optional[str]
-    additional_images: Optional[List[str]]
     created_at: datetime
     updated_at: datetime
 
@@ -192,6 +240,9 @@ class PropertyDocumentsCreate(BaseModel):
 class RoomCreate(BaseModel):
     room_type: str = Field(..., min_length=2, max_length=100)
     count: int = Field(..., ge=1, le=50)
+    max_occupancy: int = Field(..., ge=1, le=20, description="Maximum number of guests that can occupy this room")
+    bed_type: BedType = Field(..., description="Type of bed in the room")
+    view: RoomView = Field(..., description="View from the room")
     amenities: Optional[List[str]] = []
 
 
@@ -199,6 +250,9 @@ class RoomResponse(BaseModel):
     id: int
     room_type: str
     count: int
+    max_occupancy: int
+    bed_type: BedType
+    view: RoomView
     amenities: Optional[List[str]]
     created_at: datetime
     updated_at: datetime
@@ -208,6 +262,8 @@ class RoomResponse(BaseModel):
 
 
 class FacilityCreate(BaseModel):
+    facility_name: str = Field(..., min_length=1, max_length=200, description="Name of the facility")
+    facility_description: Optional[str] = Field(None, max_length=1000, description="Description of the facility")
     category: FacilityCategory
     details: Dict[str, Any]
 
@@ -220,6 +276,8 @@ class FacilityCreate(BaseModel):
 
 class FacilityResponse(BaseModel):
     id: int
+    facility_name: str
+    facility_description: Optional[str]
     category: FacilityCategory
     details: Dict[str, Any]
     created_at: datetime

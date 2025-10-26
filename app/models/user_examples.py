@@ -9,7 +9,7 @@ This file demonstrates:
 
 from sqlalchemy.orm import Session
 from .user import User, Guest, Host, AreaCoordinator, UserType, AuthProvider, UserStatus
-from typing import Optional
+from typing import Optional, List
 
 
 def create_guest_user(
@@ -56,7 +56,9 @@ def create_host_user(
     full_name: str,
     email: str,
     phone_number: str,
-    license_number: str,
+    id_proof_type: str,
+    id_proof_number: str,
+    id_proof_images: List[str],
     experience_years: int,
     company_name: Optional[str] = None
 ) -> User:
@@ -78,7 +80,9 @@ def create_host_user(
     # Create the host profile
     host_profile = Host(
         id=user.id,
-        license_number=license_number,
+        id_proof_type=id_proof_type,
+        id_proof_number=id_proof_number,
+        id_proof_images=id_proof_images,
         experience_years=experience_years,
         company_name=company_name
     )

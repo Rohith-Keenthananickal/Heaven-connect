@@ -90,7 +90,9 @@ class Host(Base):
     id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), primary_key=True)
     
     # Host-specific fields
-    license_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    id_proof_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Aadhar, PAN, Driving License, etc.")
+    id_proof_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    id_proof_images: Mapped[Optional[list[str]]] = mapped_column(JSON, nullable=True, comment="Array of URLs to ID proof images")
     experience_years: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     company_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     
