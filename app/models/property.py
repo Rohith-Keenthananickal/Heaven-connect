@@ -23,6 +23,13 @@ class PropertyStatus(str, enum.Enum):
     DELETED = "DELETED"
 
 
+class PropertyVerificationStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
 class FacilityCategory(str, enum.Enum):
     GENERAL = "GENERAL"
     BEDROOM = "BEDROOM"
@@ -52,6 +59,18 @@ class BedType(str, enum.Enum):
     SOFA_BED = "SOFA_BED"
     BUNK_BED = "BUNK_BED"
     CUSTOM = "CUSTOM"
+
+
+class VerificationStatus(str, enum.Enum):
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class PropertyVerificationStatus(str, enum.Enum):
+    DRAFT = "DRAFT"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
 
 
 class RoomView(str, enum.Enum):
@@ -112,12 +131,13 @@ class Property(Base):
     
     classification: Mapped[PropertyClassification] = mapped_column(Enum(PropertyClassification), default=PropertyClassification.SILVER)
     status: Mapped[PropertyStatus] = mapped_column(Enum(PropertyStatus), default=PropertyStatus.ACTIVE)
+    verification_status: Mapped[PropertyVerificationStatus] = mapped_column(Enum(PropertyVerificationStatus), default=PropertyVerificationStatus.DRAFT, comment="Verification status: DRAFT, PENDING, APPROVED, REJECTED")
     progress_step: Mapped[int] = mapped_column(Integer, default=1)  # Current onboarding step (1-9)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
-    # Relationships
+    # Relationships (backwards reference import needed for PropertyApproval)
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="property_profile")
     area_coordinator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[area_coordinator_id], back_populates="coordinated_properties")
     property_type: Mapped[Optional["PropertyType"]] = relationship("PropertyType", back_populates="properties")
@@ -127,6 +147,7 @@ class Property(Base):
     location: Mapped[Optional["Location"]] = relationship("Location", back_populates="property", uselist=False, cascade="all, delete-orphan")
     availability: Mapped[List["Availability"]] = relationship("Availability", back_populates="property", cascade="all, delete-orphan")
     agreements: Mapped[Optional["PropertyAgreement"]] = relationship("PropertyAgreement", back_populates="property", uselist=False, cascade="all, delete-orphan")
+    approvals: Mapped[List["PropertyApproval"]] = relationship("PropertyApproval", back_populates="property", cascade="all, delete-orphan")
 
 
 class Room(Base):
@@ -221,4 +242,24 @@ class PropertyAgreement(Base):
     signed_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    property: Mapped["Property"] = relationship("Property", back_populates="agreements") 
+    property: Mapped["Property"] = relationship("Property", back_populates="agreements")
+
+
+# Import ApprovalStatus from user model for property approvals (for TYPE_CHECKING)
+
+
+class PropertyApproval(Base):
+    __tablename__ = "property_approvals"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    property_id: Mapped[int] = mapped_column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
+    atp_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, comment="Area Coordinator/ATP who approved/rejected")
+    approval_type: Mapped[str] = mapped_column(String(100), nullable=False, comment="Type of approval (e.g., PERSONAL_DETAILS, DOCUMENTS, PROPERTY_DETAILS)")
+    verification_type: Mapped[VerificationStatus] = mapped_column(Enum(VerificationStatus), nullable=False, comment="APPROVED or REJECTED")
+    note: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True, comment="Notes or comments from the ATP")
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    property: Mapped["Property"] = relationship("Property", back_populates="approvals")
+    atp: Mapped["User"] = relationship("User", foreign_keys=[atp_id]) 

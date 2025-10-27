@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
-from app.models.property import PropertyClassification, PropertyStatus, FacilityCategory, PhotoCategory, BedType, RoomView
+import enum
+from app.models.property import PropertyClassification, PropertyStatus, PropertyVerificationStatus, FacilityCategory, PhotoCategory, BedType, RoomView
 from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
 
 
@@ -151,6 +152,7 @@ class PropertyProfileResponse(BaseModel):
     property_type_name: Optional[str]
     classification: PropertyClassification
     status: PropertyStatus
+    verification_status: PropertyVerificationStatus
     progress_step: int
     is_verified: bool
     
@@ -198,6 +200,7 @@ class PropertyResponse(BaseModel):
     
     classification: PropertyClassification
     status: PropertyStatus
+    verification_status: PropertyVerificationStatus
     progress_step: int
     is_verified: bool
     created_at: datetime
@@ -422,4 +425,59 @@ class PaginationInfo(BaseModel):
 class PropertySearchResponse(BaseModel):
     status: str = "success"
     data: List[PropertyResponse]
-    pagination: PaginationInfo 
+    pagination: PaginationInfo
+
+
+# Property Approval Schemas
+# Note: Re-export the enum from models for consistency
+from app.models.property import VerificationStatus as VerificationTypeEnum
+
+
+class VerificationType(str, enum.Enum):
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class PropertyApprovalCreate(BaseModel):
+    property_id: int = Field(..., description="ID of the property to approve/reject")
+    atp_id: int = Field(..., description="ID of the Area Coordinator/ATP")
+    approval_type: str = Field(..., min_length=1, max_length=100, description="Type of approval (e.g., PERSONAL_DETAILS, DOCUMENTS, PROPERTY_DETAILS)")
+    verification_type: VerificationType = Field(..., description="APPROVED or REJECTED")
+    note: Optional[str] = Field(None, max_length=1000, description="Notes or comments from the ATP")
+
+
+class PropertyApprovalResponse(BaseModel):
+    id: int
+    property_id: int
+    atp_id: int
+    approval_type: str
+    verification_type: VerificationType
+    note: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class PropertyApprovalAPIResponse(BaseModel):
+    status: str = "success"
+    data: PropertyApprovalResponse
+    message: str
+
+
+class PropertyApprovalListResponse(BaseModel):
+    status: str = "success"
+    data: List[PropertyApprovalResponse]
+    message: str
+    count: int
+
+
+class PropertyVerificationStatusUpdate(BaseModel):
+    verification_status: PropertyVerificationStatus = Field(..., description="New verification status (DRAFT, PENDING, APPROVED, REJECTED)")
+
+
+class PropertyVerificationStatusAPIResponse(BaseModel):
+    status: str = "success"
+    data: dict
+    message: str 

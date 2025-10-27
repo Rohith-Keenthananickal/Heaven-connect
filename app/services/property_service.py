@@ -5,7 +5,8 @@ from fastapi import HTTPException, status
 from datetime import datetime
 from app.models.property import (
     Property, Room, Facility, PropertyPhoto, Location, 
-    Availability, PropertyAgreement, PhotoCategory, PropertyType, PropertyStatus
+    Availability, PropertyAgreement, PropertyApproval, PhotoCategory, PropertyType, PropertyStatus, 
+    VerificationStatus, PropertyVerificationStatus
 )
 from app.models.user import User
 from app.schemas.property import (
@@ -693,4 +694,134 @@ class PropertyService:
             raise create_server_error_http_exception(
                 message=f"Failed to update property images: {str(e)}",
                 component="property_images_update"
+            )
+
+    @staticmethod
+    def create_property_approval(
+        db: Session,
+        property_id: int,
+        atp_id: int,
+        approval_type: str,
+        verification_type: str,
+        note: Optional[str] = None
+    ) -> PropertyApproval:
+        """Create a property approval/rejection record by ATP"""
+        try:
+            # Verify that the property exists
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Property not found"
+                )
+            
+            # Verify that the ATP exists and is an area coordinator
+            atp = db.query(User).filter(User.id == atp_id).first()
+            if not atp:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="ATP not found"
+                )
+            
+            # Convert verification_type string to enum
+            try:
+                verification_status = VerificationStatus[verification_type]
+            except KeyError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid verification_type. Must be one of: {[e.name for e in VerificationStatus]}"
+                )
+            
+            # Create the approval record
+            approval = PropertyApproval(
+                property_id=property_id,
+                atp_id=atp_id,
+                approval_type=approval_type,
+                verification_type=verification_status,
+                note=note
+            )
+            
+            db.add(approval)
+            
+            # If verification_type is REJECTED, update property verification_status to REJECTED
+            if verification_status == VerificationStatus.REJECTED:
+                property_obj.verification_status = PropertyVerificationStatus.REJECTED
+            else:
+                # If APPROVED, check if all required approvals are done
+                # This logic can be enhanced based on business requirements
+                pass
+            
+            db.commit()
+            db.refresh(approval)
+            
+            return approval
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to create property approval: {str(e)}",
+                component="property_approval_create"
+            )
+
+    @staticmethod
+    def get_property_approvals(db: Session, property_id: int) -> List[PropertyApproval]:
+        """Get all approvals for a specific property"""
+        try:
+            # Verify that the property exists
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Property not found"
+                )
+            
+            # Get all approvals for this property, ordered by created_at descending
+            approvals = db.query(PropertyApproval).filter(
+                PropertyApproval.property_id == property_id
+            ).order_by(PropertyApproval.created_at.desc()).all()
+            
+            return approvals
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise create_server_error_http_exception(
+                message=f"Failed to get property approvals: {str(e)}",
+                component="property_approvals_get"
+            )
+    
+    @staticmethod
+    def update_property_verification_status(
+        db: Session,
+        property_id: int,
+        verification_status: PropertyVerificationStatus
+    ) -> Property:
+        """Update property verification status (DRAFT, PENDING, APPROVED, REJECTED)"""
+        try:
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            if not property_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Property not found"
+                )
+            
+            property_obj.verification_status = verification_status
+            
+            # If status is APPROVED, mark as verified
+            if verification_status == PropertyVerificationStatus.APPROVED:
+                property_obj.is_verified = True
+            
+            db.commit()
+            db.refresh(property_obj)
+            return property_obj
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to update property verification status: {str(e)}",
+                component="property_verification_status_update"
             ) 

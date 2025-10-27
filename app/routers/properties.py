@@ -7,8 +7,11 @@ from app.schemas.property import (
     PropertyProfileResponse, PropertyResponse, PropertySearchRequest, 
     PropertySearchResponse, PropertyStatusUpdate,
     PropertyCreateAPIResponse, PropertyGetAPIResponse, PropertyUpdateAPIResponse,
-    PropertyDeleteAPIResponse, PropertyStatusUpdateAPIResponse
+    PropertyDeleteAPIResponse, PropertyStatusUpdateAPIResponse,
+    PropertyApprovalCreate, PropertyApprovalAPIResponse, PropertyApprovalResponse, PropertyApprovalListResponse, VerificationType,
+    PropertyVerificationStatusUpdate, PropertyVerificationStatusAPIResponse
 )
+from app.models.property import PropertyVerificationStatus
 from app.services.property_service import PropertyService
 from app.utils.error_handler import create_server_error_http_exception
 from app.models.property import PropertyStatus
@@ -211,4 +214,128 @@ async def update_property_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update property status: {str(e)}"
+        )
+
+
+@router.post("/approval", response_model=PropertyApprovalAPIResponse, status_code=status.HTTP_201_CREATED)
+async def create_property_approval(
+    approval_data: PropertyApprovalCreate,
+    db: Session = Depends(get_sync_db)
+):
+    """Create a property approval/rejection by ATP (Area Coordinator)"""
+    try:
+        approval = PropertyService.create_property_approval(
+            db,
+            approval_data.property_id,
+            approval_data.atp_id,
+            approval_data.approval_type,
+            approval_data.verification_type.value,
+            approval_data.note
+        )
+        
+        return PropertyApprovalAPIResponse(
+            status="success",
+            data=PropertyApprovalResponse(
+                id=approval.id,
+                property_id=approval.property_id,
+                atp_id=approval.atp_id,
+                approval_type=approval.approval_type,
+                verification_type=VerificationType(approval.verification_type.value),
+                note=approval.note,
+                created_at=approval.created_at,
+                updated_at=approval.updated_at
+            ),
+            message=f"Property {approval_data.approval_type.lower()} {approval_data.verification_type.value.lower()} successfully"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create property approval: {str(e)}"
+        )
+
+
+@router.get("/{property_id}/approvals", response_model=PropertyApprovalListResponse)
+async def get_property_approvals(
+    property_id: int,
+    db: Session = Depends(get_sync_db)
+):
+    """Get all approvals for a specific property"""
+    try:
+        approvals = PropertyService.get_property_approvals(db, property_id)
+        
+        # Convert to response models
+        approval_responses = [
+            PropertyApprovalResponse(
+                id=approval.id,
+                property_id=approval.property_id,
+                atp_id=approval.atp_id,
+                approval_type=approval.approval_type,
+                verification_type=VerificationType(approval.verification_type.value),
+                note=approval.note,
+                created_at=approval.created_at,
+                updated_at=approval.updated_at
+            )
+            for approval in approvals
+        ]
+        
+        return PropertyApprovalListResponse(
+            status="success",
+            data=approval_responses,
+            message=f"Retrieved {len(approval_responses)} approval(s) for property {property_id}",
+            count=len(approval_responses)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get property approvals: {str(e)}"
+        )
+
+
+@router.patch("/{property_id}/verification-status", response_model=PropertyVerificationStatusAPIResponse)
+async def update_property_verification_status(
+    property_id: int,
+    status_update: PropertyVerificationStatusUpdate,
+    db: Session = Depends(get_sync_db)
+):
+    """Update property verification status (DRAFT, PENDING, APPROVED, REJECTED)"""
+    try:
+        updated_property = PropertyService.update_property_verification_status(
+            db,
+            property_id,
+            status_update.verification_status
+        )
+        
+        if not updated_property:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+        
+        status_messages = {
+            PropertyVerificationStatus.DRAFT: "Property verification status set to DRAFT",
+            PropertyVerificationStatus.PENDING: "Property verification status set to PENDING",
+            PropertyVerificationStatus.APPROVED: "Property verification status set to APPROVED",
+            PropertyVerificationStatus.REJECTED: "Property verification status set to REJECTED"
+        }
+        
+        return PropertyVerificationStatusAPIResponse(
+            status="success",
+            data={
+                "property_id": updated_property.id,
+                "verification_status": updated_property.verification_status.value,
+                "is_verified": updated_property.is_verified
+            },
+            message=status_messages[status_update.verification_status]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update property verification status: {str(e)}"
         ) 

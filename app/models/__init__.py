@@ -1,7 +1,7 @@
 from .user import User, OTPVerification, Guest, Host, AreaCoordinator, BankDetails, ApprovalStatus
 from .property import (
     Property, Room, Facility, PropertyPhoto, 
-    Location, Availability, PropertyAgreement
+    Location, Availability, PropertyAgreement, PropertyApproval, VerificationStatus, PropertyVerificationStatus
 )
 from .location import District, GramaPanchayat
 from .training import TrainingModule, TrainingContent, TrainingProgress, ContentType, TrainingStatus
@@ -22,6 +22,9 @@ __all__ = [
     "Location", 
     "Availability",
     "PropertyAgreement",
+    "PropertyApproval",
+    "VerificationStatus",
+    "PropertyVerificationStatus",
     "District",
     "GramaPanchayat",
     "TrainingModule",
