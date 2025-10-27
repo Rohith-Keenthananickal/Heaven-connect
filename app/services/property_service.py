@@ -517,6 +517,13 @@ class PropertyService:
                 else:
                     filters.append(Property.status.in_(search_request.status))
             
+            # Apply verification status filter (array support)
+            if search_request.verification_status:
+                if len(search_request.verification_status) == 1:
+                    filters.append(Property.verification_status == search_request.verification_status[0])
+                else:
+                    filters.append(Property.verification_status.in_(search_request.verification_status))
+            
             # Apply date filter
             if search_request.date_filter:
                 if search_request.date_filter.from_date:

@@ -402,6 +402,7 @@ class PropertySearchRequest(BaseModel):
     property_type_id: Optional[List[int]] = Field(None, description="Filter by property type IDs (array)")
     property_type_name: Optional[List[str]] = Field(None, description="Filter by property type names (array)")
     status: Optional[List[PropertyStatus]] = Field(None, description="Filter by property statuses (array)")
+    verification_status: Optional[List[PropertyVerificationStatus]] = Field(None, description="Filter by property verification statuses (array)")
     page: int = Field(1, ge=1, description="Page number (1-based)")
     search_query: Optional[str] = Field(None, description="Search query for property name")
     date_filter: Optional["DateFilter"] = Field(None, description="Date range filter for created_at")
