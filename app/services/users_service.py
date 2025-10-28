@@ -5,10 +5,12 @@ from fastapi import HTTPException, status
 from app.models.user import User, Guest, Host, AreaCoordinator, BankDetails, AuthProvider, UserStatus, UserType, ApprovalStatus
 from app.schemas.users import UserCreate, UserUpdate, UserSearchRequest
 from app.services.base_service import BaseService
-from app.utils.auth import get_password_hash, verify_password
 from app.utils.error_handler import (
     create_http_exception
 )
+# Use direct bcrypt implementation to avoid 72-byte limit issues
+from app.utils.direct_bcrypt import hash_password as get_password_hash
+from app.utils.direct_bcrypt import verify_password
 from app.utils.atp_uuid import generate_atp_uuid
 from app.schemas.errors import ErrorCodes, ErrorMessages
 from datetime import datetime
@@ -38,7 +40,9 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         
         # Hash password if provided
         if obj_data.get("password"):
-            obj_data["password_hash"] = get_password_hash(obj_data.pop("password"))
+            # Use our direct bcrypt implementation which handles the 72-byte limit internally
+            password = obj_data.pop("password")
+            obj_data["password_hash"] = get_password_hash(password)
         
         # Check for existing user with same email or phone
         if obj_data.get("email"):
@@ -146,7 +150,10 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             "auth_provider": user.auth_provider,
             "user_type": user.user_type,
             "email": user.email,
+            "email_verified": user.email_verified if hasattr(user, "email_verified") else False,
             "phone_number": user.phone_number,
+            "country_code": user.country_code if hasattr(user, "country_code") else None,
+            "phone_verified": user.phone_verified if hasattr(user, "phone_verified") else False,
             "full_name": user.full_name,
             "dob": user.dob,
             "profile_image": user.profile_image,
@@ -1024,6 +1031,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 return None
             
             # Verify password using raw SQLAlchemy object
+            # Our direct bcrypt implementation handles the 72-byte limit internally
             if not verify_password(password, user.password_hash):
                 return None
             

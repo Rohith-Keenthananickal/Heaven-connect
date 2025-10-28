@@ -9,41 +9,79 @@ from app.core.config import settings
 from app.database import get_db
 from app.models.user import User
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Create a CryptContext with settings to handle bcrypt's limitations
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__truncate_error=False,  # Don't raise error on truncation
+    bcrypt__max_rounds=12  # Reasonable work factor
+)
 
 # Security scheme for JWT
 security = HTTPBearer()
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash with bcrypt 72-byte limit handling"""
-    # Apply the same truncation logic as in get_password_hash for consistency
-    password_bytes = plain_password.encode('utf-8')
-    if len(password_bytes) > 72:
-        # Truncate to 72 bytes and decode back to string
-        truncated_bytes = password_bytes[:72]
-        # Find the last complete character boundary
-        while truncated_bytes and truncated_bytes[-1] & 0x80 and not (truncated_bytes[-1] & 0x40):
-            truncated_bytes = truncated_bytes[:-1]
-        plain_password = truncated_bytes.decode('utf-8', errors='ignore')
+def truncate_password_for_bcrypt(password: str) -> str:
+    """
+    Truncate a password to 72 bytes for bcrypt compliance.
+    This function handles UTF-8 character boundaries safely.
     
+    Args:
+        password: The password string to truncate
+        
+    Returns:
+        A truncated password string that encodes to <= 72 bytes
+    """
+    # Convert to bytes for accurate length measurement
+    password_bytes = password.encode('utf-8')
+    
+    # If under 72 bytes, no need to truncate
+    if len(password_bytes) <= 72:
+        return password
+        
+    # Truncate to 72 bytes or less
+    truncated = password_bytes[:72]
+    
+    # Make sure we end at a valid UTF-8 character boundary
+    # Remove any incomplete UTF-8 sequences at the end
+    while truncated and (truncated[-1] & 0x80) and not (truncated[-1] & 0x40):
+        truncated = truncated[:-1]
+    
+    # Convert back to string
+    result = truncated.decode('utf-8', errors='replace')
+    
+    # Final safety check - in case decoding produces something > 72 bytes
+    while result and len(result.encode('utf-8')) > 72:
+        result = result[:-1]
+        
+    return result
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash with bcrypt 72-byte limit handling
+    
+    This function safely truncates passwords longer than 72 bytes before
+    verification, which is bcrypt's limit.
+    """
+    # Truncate plain password if needed
+    if plain_password and len(plain_password.encode('utf-8')) > 72:
+        plain_password = truncate_password_for_bcrypt(plain_password)
+    
+    # Use standard pwd_context for verification
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password with bcrypt 72-byte limit handling"""
-    # bcrypt has a 72-byte limit, so we need to truncate if necessary
-    # Convert to bytes to check actual byte length, not character count
-    password_bytes = password.encode('utf-8')
-    if len(password_bytes) > 72:
-        # Truncate to 72 bytes and decode back to string
-        truncated_bytes = password_bytes[:72]
-        # Find the last complete character boundary
-        while truncated_bytes and truncated_bytes[-1] & 0x80 and not (truncated_bytes[-1] & 0x40):
-            truncated_bytes = truncated_bytes[:-1]
-        password = truncated_bytes.decode('utf-8', errors='ignore')
+    """Hash a password with bcrypt 72-byte limit handling
     
+    bcrypt has a maximum password length of 72 bytes. This function safely
+    truncates passwords longer than 72 bytes before hashing.
+    """
+    # Truncate password if needed
+    if password and len(password.encode('utf-8')) > 72:
+        password = truncate_password_for_bcrypt(password)
+        
+    # Use standard pwd_context for hashing
     return pwd_context.hash(password)
 
 

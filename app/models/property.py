@@ -208,6 +208,15 @@ class Location(Base):
     google_map_link: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     floor: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     elderly_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Nearby places information
+    nearby_airport: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Nearest airport name")
+    distance_to_airport: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Distance to airport (e.g., '25 km', '30 minutes')")
+    nearest_railway_station: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Nearest railway station name")
+    distance_to_railway_station: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Distance to railway station (e.g., '10 km', '15 minutes')")
+    nearest_bus_stand: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Nearest bus stand name")
+    distance_to_bus_stand: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Distance to bus stand (e.g., '2 km', '5 minutes')")
+    
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

@@ -256,7 +256,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: Optional[str] = Field(None, min_length=8, max_length=100)
+    password: Optional[str] = Field(None, min_length=8, description="Password (will be safely truncated if it exceeds 72 bytes when encoded). Note: max character length depends on encoding but is typically around 72 characters for ASCII.")
     
     # Profile-specific fields based on user_type
     guest_profile: Optional[GuestProfileCreate] = Field(None, description="Required when user_type is GUEST")

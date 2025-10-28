@@ -8,7 +8,7 @@ class LoginRequest(BaseModel):
     auth_provider: str = Field(..., description="Authentication provider: EMAIL, GOOGLE, or MOBILE")
     email: Optional[EmailStr] = Field(None, description="Email for email-based login")
     phone_number: Optional[str] = Field(None, description="Phone number for mobile-based login")
-    password: Optional[str] = Field(None, description="Password for email-based login")
+    password: Optional[str] = Field(None, description="Password for email-based login (will be safely truncated if it exceeds 72 bytes when encoded)")
     google_token: Optional[str] = Field(None, description="Google OAuth token for Google-based login")
     otp: Optional[str] = Field(None, description="OTP code for mobile-based login")
 
@@ -42,4 +42,4 @@ class MobileOTPLoginRequest(BaseModel):
 class EmailLoginRequest(BaseModel):
     """Email-based login request"""
     email: EmailStr = Field(..., description="User email")
-    password: str = Field(..., description="User password")
+    password: str = Field(..., description="User password (will be safely truncated if it exceeds 72 bytes when encoded)")

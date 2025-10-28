@@ -317,6 +317,14 @@ class LocationCreate(BaseModel):
     google_map_link: Optional[str] = Field(None, max_length=1000)
     floor: Optional[str] = Field(None, max_length=50)
     elderly_friendly: bool = False
+    
+    # Nearby places information
+    nearby_airport: Optional[str] = Field(None, max_length=200, description="Nearest airport name")
+    distance_to_airport: Optional[str] = Field(None, max_length=50, description="Distance to airport (e.g., '25 km', '30 minutes')")
+    nearest_railway_station: Optional[str] = Field(None, max_length=200, description="Nearest railway station name")
+    distance_to_railway_station: Optional[str] = Field(None, max_length=50, description="Distance to railway station (e.g., '10 km', '15 minutes')")
+    nearest_bus_stand: Optional[str] = Field(None, max_length=200, description="Nearest bus stand name")
+    distance_to_bus_stand: Optional[str] = Field(None, max_length=50, description="Distance to bus stand (e.g., '2 km', '5 minutes')")
 
 
 class LocationResponse(BaseModel):
@@ -325,6 +333,15 @@ class LocationResponse(BaseModel):
     google_map_link: Optional[str]
     floor: Optional[str]
     elderly_friendly: bool
+    
+    # Nearby places information
+    nearby_airport: Optional[str]
+    distance_to_airport: Optional[str]
+    nearest_railway_station: Optional[str]
+    distance_to_railway_station: Optional[str]
+    nearest_bus_stand: Optional[str]
+    distance_to_bus_stand: Optional[str]
+    
     created_at: datetime
     updated_at: datetime
 

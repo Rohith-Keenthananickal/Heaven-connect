@@ -24,6 +24,7 @@ def upgrade():
     op.add_column('properties', sa.Column('tourism_certificate_photos', sa.JSON(), nullable=True, comment='Array of URLs to tourism certificate photos'))
     
     # Add trade license fields
+    op.add_column('properties', sa.Column('trade_license_number', sa.String(length=100), nullable=True))
     op.add_column('properties', sa.Column('trade_license_images', sa.JSON(), nullable=True, comment='Array of URLs to trade license images'))
     
     # Create indexes for better query performance
@@ -39,6 +40,7 @@ def downgrade():
     
     # Drop the new columns
     op.drop_column('properties', 'trade_license_images')
+    op.drop_column('properties', 'trade_license_number')
     op.drop_column('properties', 'tourism_certificate_photos')
     op.drop_column('properties', 'tourism_certificate_issued_by')
     op.drop_column('properties', 'tourism_certificate_number')

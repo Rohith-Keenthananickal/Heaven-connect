@@ -108,6 +108,14 @@ async def startup_event():
     print(f"Environment: {settings.ENVIRONMENT}")
     print(f"Debug mode: {settings.DEBUG}")
     
+    # Apply bcrypt patch to fix 72-byte limit issues
+    try:
+        from app.utils.bcrypt_patch import apply_patch
+        apply_patch()
+        print("Applied bcrypt 72-byte limit patch")
+    except Exception as e:
+        print(f"Warning: Could not apply bcrypt patch: {e}")
+    
     # Create database tables (for development - use Alembic in production)
     if settings.ENVIRONMENT == "development":
         try:
