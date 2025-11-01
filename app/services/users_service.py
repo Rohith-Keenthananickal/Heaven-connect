@@ -186,6 +186,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             user_dict["area_coordinator_profile"] = {
                 "id": user.area_coordinator_profile.id,
                 "atp_uuid": user.area_coordinator_profile.atp_uuid,
+                "application_number": user.area_coordinator_profile.application_number,
                 "region": user.area_coordinator_profile.region,
                 "assigned_properties": user.area_coordinator_profile.assigned_properties,
                 "approval_status": user.area_coordinator_profile.approval_status,
@@ -237,6 +238,8 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         """Convert AreaCoordinator object to clean dictionary to avoid SQLAlchemy issues"""
         coordinator_dict = {
             "id": coordinator.id,
+            "atp_uuid": coordinator.atp_uuid,
+            "application_number": coordinator.application_number,
             "region": coordinator.region,
             "assigned_properties": coordinator.assigned_properties,
             "approval_status": coordinator.approval_status,
@@ -325,9 +328,6 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             profile = Host(id=user_id, **host_profile)
             db.add(profile)
         elif user_type == UserType.AREA_COORDINATOR and area_coordinator_profile:
-            # Generate ATP UUID for new Area Coordinator
-            atp_uuid = await generate_atp_uuid(db)
-            area_coordinator_profile["atp_uuid"] = atp_uuid
             profile = AreaCoordinator(id=user_id, **area_coordinator_profile)
             db.add(profile)
 
@@ -839,6 +839,25 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             coordinator.approval_date = datetime.utcnow()
             coordinator.approved_by = admin_user_id
             coordinator.rejection_reason = None  # Clear any previous rejection reason
+            
+            # Generate ATP UUID only on approval
+            if not coordinator.atp_uuid:
+                atp_uuid = await generate_atp_uuid(db)
+                coordinator.atp_uuid = atp_uuid
+                
+            # Generate application number if not already set
+            if not coordinator.application_number:
+                # Application number format: ATP-YYYY-XXXXX (where XXXXX is a sequential number)
+                current_year = datetime.utcnow().year
+                # Get the count of approved coordinators for this year
+                count_query = select(func.count(AreaCoordinator.id)).where(
+                    AreaCoordinator.approval_status == ApprovalStatus.APPROVED,
+                    func.extract('year', AreaCoordinator.approval_date) == current_year
+                )
+                count_result = await db.execute(count_query)
+                count = count_result.scalar() or 0
+                # Format: ATP-YYYY-XXXXX where XXXXX is zero-padded sequence number
+                coordinator.application_number = f"ATP-{current_year}-{(count + 1):05d}"
             
             await db.commit()
             await db.refresh(coordinator)

@@ -108,6 +108,7 @@ class AreaCoordinator(Base):
     
     # Basic Area Coordinator fields
     atp_uuid: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, unique=True, index=True, comment="ATP UUID in format ATP-01234")
+    application_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True, comment="Application number for the coordinator")
     region: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     assigned_properties: Mapped[Optional[int]] = mapped_column(Integer, default=0, nullable=True)
     
