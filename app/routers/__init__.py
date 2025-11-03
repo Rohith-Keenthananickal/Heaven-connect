@@ -9,6 +9,7 @@ from .availability import router as availability_router
 from .property_agreements import router as property_agreements_router
 from .districts import router as districts_router
 from .grama_panchayats import router as grama_panchayats_router
+from .enquiries import router as enquiries_router
 
 __all__ = [
     "users_router",
@@ -21,5 +22,6 @@ __all__ = [
     "availability_router",
     "property_agreements_router",
     "districts_router",
-    "grama_panchayats_router"
+    "grama_panchayats_router",
+    "enquiries_router"
 ]

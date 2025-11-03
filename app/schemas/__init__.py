@@ -2,6 +2,7 @@ from .user import *
 from .property import *
 from .districts import *
 from .grama_panchayats import *
+from .enquiry import *
 from .errors import (
     ErrorResponse, 
     ValidationErrorResponse, 
@@ -51,6 +52,21 @@ __all__ = [
     "GramaPanchayatResponse",
     "GramaPanchayatListResponse",
     "GramaPanchayatWithDistrictResponse",
+    
+    # Enquiry schemas
+    "EnquiryBase",
+    "EnquiryCreate",
+    "EnquiryUpdate",
+    "EnquiryResponse",
+    "EnquiryStatusUpdate",
+    "EnquirySearchRequest",
+    "EnquirySearchResponse",
+    "EnquiryCreateAPIResponse",
+    "EnquiryListAPIResponse",
+    "EnquiryGetAPIResponse",
+    "EnquiryUpdateAPIResponse",
+    "EnquiryDeleteAPIResponse",
+    "EnquiryStatusUpdateAPIResponse",
     
     # Error schemas
     "ErrorResponse",

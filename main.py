@@ -26,6 +26,7 @@ from app.routers.corporations import router as corporations_router
 from app.routers.municipalities import router as municipalities_router
 from app.routers.training import router as training_router
 from app.routers.communication import router as communication_router
+from app.routers.enquiries import router as enquiries_router
 
 # Note: Database tables will be created via startup event for async compatibility
 
@@ -76,6 +77,7 @@ app.include_router(corporations_router, prefix="/api/v1")
 app.include_router(municipalities_router, prefix="/api/v1")
 app.include_router(training_router, prefix="/api/v1")
 app.include_router(communication_router, prefix="/api/v1")
+app.include_router(enquiries_router, prefix="/api/v1")
 
 
 @app.get("/")

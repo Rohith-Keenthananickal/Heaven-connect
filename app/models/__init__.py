@@ -6,6 +6,7 @@ from .property import (
 from .location import District, GramaPanchayat
 from .training import TrainingModule, TrainingContent, TrainingProgress, ContentType, TrainingStatus
 from .communication import EmailTemplate, EmailLog, EmailStatus, EmailType
+from .enquiry import Enquiry, Gender, IDCardType, EnquiryStatus
 
 __all__ = [
     "User",
@@ -35,5 +36,9 @@ __all__ = [
     "EmailTemplate",
     "EmailLog",
     "EmailStatus",
-    "EmailType"
+    "EmailType",
+    "Enquiry",
+    "Gender",
+    "IDCardType",
+    "EnquiryStatus"
 ]
