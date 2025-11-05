@@ -403,3 +403,30 @@ class BankDetailsResponseWrapper(BaseModel):
     status: str = "success"
     data: BankDetailsResponse
     message: str
+
+
+# ATP Statistics schemas
+class DateFilter(BaseModel):
+    """Date filter with from and to dates in milliseconds"""
+    from_date: Optional[int] = Field(None, description="From date in milliseconds (timestamp)")
+    to_date: Optional[int] = Field(None, description="To date in milliseconds (timestamp)")
+
+
+class ATPStatisticsRequest(BaseModel):
+    """Request schema for ATP statistics"""
+    user_id: int = Field(..., description="ATP user ID")
+    date_filter: Optional[DateFilter] = Field(None, description="Optional date filter for statistics")
+
+
+class ATPStatisticsData(BaseModel):
+    """Statistics data"""
+    active_properties: int = Field(..., description="Count of active properties with verification_status APPROVED")
+    pending_property_applications: int = Field(..., description="Count of pending property applications with verification_status PENDING")
+    pending_enquiries: int = Field(..., description="Count of pending enquiries with status PENDING")
+
+
+class ATPStatisticsResponse(BaseModel):
+    """Response schema for ATP statistics"""
+    status: str = "success"
+    data: ATPStatisticsData
+    message: str = "ATP statistics retrieved successfully"

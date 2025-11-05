@@ -9,7 +9,8 @@ from app.schemas.users import (
     AreaCoordinatorApprovalRequest, AreaCoordinatorApprovalResponse,
     UserCreateAPIResponse, UserListAPIResponse, UserGetAPIResponse, UserUpdateAPIResponse,
     UserStatusUpdateAPIResponse, UserDeleteAPIResponse, UserProfileGetAPIResponse,
-    UserTypeListAPIResponse, VerificationStatusUpdate, VerificationStatusResponse
+    UserTypeListAPIResponse, VerificationStatusUpdate, VerificationStatusResponse,
+    ATPStatisticsRequest, ATPStatisticsResponse, ATPStatisticsData
 )
 from app.services.users_service import users_service
 
@@ -546,4 +547,39 @@ async def update_verification_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update {verification_data.verification_type.value.lower()} verification status: {str(e)}"
+        )
+
+
+@router.post("/atp/statistics", response_model=ATPStatisticsResponse)
+async def get_atp_statistics(
+    statistics_request: ATPStatisticsRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get statistics for an ATP user (active properties, pending applications, pending enquiries)"""
+    try:
+        date_filter = None
+        if statistics_request.date_filter:
+            date_filter = {
+                "from_date": statistics_request.date_filter.from_date,
+                "to_date": statistics_request.date_filter.to_date
+            }
+        
+        statistics = await users_service.get_atp_statistics(
+            db, statistics_request.user_id, date_filter
+        )
+        
+        return ATPStatisticsResponse(
+            data=ATPStatisticsData(
+                active_properties=statistics["active_properties"],
+                pending_property_applications=statistics["pending_property_applications"],
+                pending_enquiries=statistics["pending_enquiries"]
+            ),
+            message="ATP statistics retrieved successfully"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve ATP statistics: {str(e)}"
         )

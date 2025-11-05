@@ -416,6 +416,7 @@ class CoordinatorAssignment(BaseModel):
 
 class PropertySearchRequest(BaseModel):
     user_id: Optional[int] = Field(None, description="Filter by user ID")
+    area_coordinator_id: Optional[int] = Field(None, description="Filter by area coordinator ID")
     property_type_id: Optional[List[int]] = Field(None, description="Filter by property type IDs (array)")
     property_type_name: Optional[List[str]] = Field(None, description="Filter by property type names (array)")
     status: Optional[List[PropertyStatus]] = Field(None, description="Filter by property statuses (array)")

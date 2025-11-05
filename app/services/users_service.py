@@ -1561,6 +1561,95 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         """Generate a random OTP code"""
         return ''.join(random.choices(string.digits, k=length))
 
+    async def get_atp_statistics(
+        self, 
+        db: AsyncSession, 
+        user_id: int, 
+        date_filter: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, int]:
+        """Get statistics for an ATP user"""
+        from app.models.property import Property, PropertyVerificationStatus
+        from app.models.enquiry import Enquiry, EnquiryStatus
+        
+        # Verify user is an area coordinator and get their ATP UUID
+        user = await self.get_or_404(db, user_id, "User not found")
+        if user.get("user_type") != "AREA_COORDINATOR":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Statistics can only be retrieved for area coordinators"
+            )
+        
+        # Get the ATP UUID from the area coordinator profile
+        coordinator_result = await db.execute(
+            select(AreaCoordinator).where(AreaCoordinator.id == user_id)
+        )
+        coordinator = coordinator_result.scalar_one_or_none()
+        if not coordinator or not coordinator.atp_uuid:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ATP UUID not found for this area coordinator"
+            )
+        
+        atp_uuid = coordinator.atp_uuid
+        
+        # Build date filter conditions
+        property_date_filters = []
+        enquiry_date_filters = []
+        if date_filter:
+            if date_filter.get("from_date"):
+                from_datetime = datetime.fromtimestamp(date_filter["from_date"] / 1000)
+                property_date_filters.append(Property.created_at >= from_datetime)
+                enquiry_date_filters.append(Enquiry.created_at >= from_datetime)
+            if date_filter.get("to_date"):
+                to_datetime = datetime.fromtimestamp(date_filter["to_date"] / 1000)
+                property_date_filters.append(Property.created_at <= to_datetime)
+                enquiry_date_filters.append(Enquiry.created_at <= to_datetime)
+        
+        # Count active properties (verification_status == APPROVED)
+        active_properties_filters = [
+            Property.area_coordinator_id == user_id,
+            Property.verification_status == PropertyVerificationStatus.APPROVED
+        ]
+        active_properties_filters.extend(property_date_filters)
+        
+        active_properties_query = select(func.count()).select_from(Property).where(
+            and_(*active_properties_filters)
+        )
+        active_properties_result = await db.execute(active_properties_query)
+        active_properties_count = active_properties_result.scalar() or 0
+        
+        # Count pending property applications (verification_status == PENDING)
+        pending_properties_filters = [
+            Property.area_coordinator_id == user_id,
+            Property.verification_status == PropertyVerificationStatus.PENDING
+        ]
+        pending_properties_filters.extend(property_date_filters)
+        
+        pending_properties_query = select(func.count()).select_from(Property).where(
+            and_(*pending_properties_filters)
+        )
+        pending_properties_result = await db.execute(pending_properties_query)
+        pending_properties_count = pending_properties_result.scalar() or 0
+        
+        # Count pending enquiries (status == PENDING, atp_id == atp_uuid)
+        pending_enquiries_filters = [
+            Enquiry.atp_id == atp_uuid,
+            Enquiry.status == EnquiryStatus.PENDING
+        ]
+        pending_enquiries_filters.extend(enquiry_date_filters)
+        
+        pending_enquiries_query = select(func.count()).select_from(Enquiry).where(
+            and_(*pending_enquiries_filters)
+        )
+        pending_enquiries_result = await db.execute(pending_enquiries_query)
+        pending_enquiries_count = pending_enquiries_result.scalar() or 0
+        
+        return {
+            "active_properties": active_properties_count,
+            "pending_property_applications": pending_properties_count,
+            "pending_enquiries": pending_enquiries_count
+        }
+
 
 # Service instance
 users_service = UsersService()

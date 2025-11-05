@@ -496,6 +496,10 @@ class PropertyService:
             if search_request.user_id:
                 filters.append(Property.user_id == search_request.user_id)
             
+            # Apply area coordinator ID filter
+            if search_request.area_coordinator_id:
+                filters.append(Property.area_coordinator_id == search_request.area_coordinator_id)
+            
             # Apply property type ID filter (array support)
             if search_request.property_type_id:
                 if len(search_request.property_type_id) == 1:
