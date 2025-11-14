@@ -84,7 +84,7 @@ app.include_router(enquiries_router, prefix="/api/v1")
 def read_root():
     """Root endpoint with API information"""
     return {
-        "message": "Welcome to Heaven Connect API",
+        "message": "Welcome to Heaven Connect  API",
         "version": settings.APP_VERSION,
         "docs": "/docs",
         "redoc": "/redoc",
