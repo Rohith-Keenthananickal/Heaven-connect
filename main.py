@@ -34,7 +34,7 @@ from app.routers.enquiries import router as enquiries_router
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Heaven Connect - Host Onboarding Platform API",
+    description="Heaven Connect - Platform API",
     docs_url="/docs",
     redoc_url="/redoc"
 )
