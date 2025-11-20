@@ -148,6 +148,7 @@ class Property(Base):
     availability: Mapped[List["Availability"]] = relationship("Availability", back_populates="property", cascade="all, delete-orphan")
     agreements: Mapped[Optional["PropertyAgreement"]] = relationship("PropertyAgreement", back_populates="property", uselist=False, cascade="all, delete-orphan")
     approvals: Mapped[List["PropertyApproval"]] = relationship("PropertyApproval", back_populates="property", cascade="all, delete-orphan")
+    issues: Mapped[List["Issue"]] = relationship("Issue", back_populates="property", cascade="all, delete-orphan")
 
 
 class Room(Base):

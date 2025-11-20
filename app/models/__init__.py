@@ -7,6 +7,11 @@ from .location import District, GramaPanchayat
 from .training import TrainingModule, TrainingContent, TrainingProgress, ContentType, TrainingStatus
 from .communication import EmailTemplate, EmailLog, EmailStatus, EmailType
 from .enquiry import Enquiry, Gender, IDCardType, EnquiryStatus
+from .issue import (
+    Issue, IssueActivity, IssueEscalation,
+    IssueType, IssueStatus, IssueStatusEnum, Priority,
+    EscalationLevel, ActivityType
+)
 
 __all__ = [
     "User",
@@ -40,5 +45,14 @@ __all__ = [
     "Enquiry",
     "Gender",
     "IDCardType",
-    "EnquiryStatus"
+    "EnquiryStatus",
+    "Issue",
+    "IssueActivity",
+    "IssueEscalation",
+    "IssueType",
+    "IssueStatus",
+    "IssueStatusEnum",
+    "Priority",
+    "EscalationLevel",
+    "ActivityType"
 ]
