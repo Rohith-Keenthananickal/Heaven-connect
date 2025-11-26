@@ -53,15 +53,12 @@ class Settings(BaseSettings):
     S3_USE_SSL: bool = True
     S3_SIGNATURE_VERSION: str = "s3v4"
     
-    # Email settings (Zoho)
-    ZOHO_EMAIL: str = ""
-    ZOHO_APP_PASSWORD: str = ""
-    ZOHO_SMTP_SERVER: str = "smtp.zoho.com"
-    ZOHO_SMTP_PORT: int = 587
-    ZOHO_FROM_NAME: str = "Heaven Connect"
-    
     # Frontend URL for email links
     FRONTEND_URL: str = "http://localhost:3000"
+    
+    # External communication service
+    COMMUNICATION_SERVER_BASE_URL: str = "https://communications.heavenconnect.in"
+    COMMUNICATION_TIMEOUT_SECONDS: int = 10
     
     def get_allowed_extensions(self) -> List[str]:
         extensions_str = self.ALLOWED_IMAGE_EXTENSIONS or self.ALLOWED_IMAGE_EXTENSIONS_STR

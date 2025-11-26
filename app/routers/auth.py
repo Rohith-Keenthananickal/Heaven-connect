@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
+from enum import Enum
 from app.database import get_db
 from app.schemas.auth import (
     LoginRequest, 
@@ -10,15 +11,15 @@ from app.schemas.auth import (
     MobileOTPLoginRequest,
     GoogleLoginRequest
 )
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from app.services.users_service import users_service
-from app.utils.auth import create_access_token
+from app.utils.auth import create_access_token, get_current_user
 from app.utils.error_handler import (
     create_http_exception,
     create_authentication_http_exception,
     extract_request_info
 )
-from app.models.user import AuthProvider, UserStatus
+from app.models.user import AuthProvider, UserStatus, User
 from app.schemas.errors import ErrorCodes, ErrorMessages
 from datetime import timedelta
 
@@ -26,9 +27,16 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 # Email OTP Schemas
+class EmailOTPPurpose(str, Enum):
+    """Purpose for email-based OTP requests"""
+    CONFIRMATION = "confirmation"
+    PASSWORD_RESET = "password_reset"
+
+
 class EmailOTPRequest(BaseModel):
     """Request schema for sending email OTP"""
     email: EmailStr
+    purpose: EmailOTPPurpose
 
 
 class EmailOTPVerifyRequest(BaseModel):
@@ -49,6 +57,18 @@ class EmailOTPLoginResponse(BaseModel):
     status: str = "success"
     data: TokenResponse
     message: str
+
+
+class PasswordUpdateRequest(BaseModel):
+    """Request schema for updating password after OTP verification"""
+    new_password: str = Field(..., min_length=8, max_length=128)
+    confirm_password: str = Field(..., min_length=8, max_length=128)
+
+
+class PasswordUpdateResponse(BaseModel):
+    """Response schema for password update"""
+    status: str = "success"
+    message: str = "Password updated successfully"
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -366,7 +386,11 @@ async def send_email_otp(
     try:
         request_info = extract_request_info(request)
         
-        result = await users_service.send_email_otp(db, otp_request.email)
+        result = await users_service.send_email_otp(
+            db,
+            otp_request.email,
+            otp_request.purpose.value
+        )
         
         return EmailOTPResponse(
             message=result["message"],
@@ -461,7 +485,11 @@ async def resend_email_otp(
     try:
         request_info = extract_request_info(request)
         
-        result = await users_service.resend_email_otp(db, otp_request.email)
+        result = await users_service.resend_email_otp(
+            db,
+            otp_request.email,
+            otp_request.purpose.value
+        )
         
         return EmailOTPResponse(
             message=result["message"],
@@ -477,6 +505,49 @@ async def resend_email_otp(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             message=f"Failed to resend email OTP: {str(e)}",
             error_code=ErrorCodes.OTP_RESEND_FAILED,
+            path=request_info["path"],
+            method=request_info["method"],
+            trace_id=request_info["trace_id"]
+        )
+
+
+@router.post("/reset-password/update", response_model=PasswordUpdateResponse)
+async def update_password_after_reset(
+    request: Request,
+    update_request: PasswordUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update the password after OTP verification"""
+    try:
+        request_info = extract_request_info(request)
+
+        if update_request.new_password != update_request.confirm_password:
+            raise create_http_exception(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="Passwords do not match",
+                error_code=ErrorCodes.BAD_REQUEST,
+                path=request_info["path"],
+                method=request_info["method"],
+                trace_id=request_info["trace_id"]
+            )
+
+        await users_service.update_password_after_reset(
+            db,
+            user=current_user,
+            new_password=update_request.new_password
+        )
+
+        return PasswordUpdateResponse()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        request_info = extract_request_info(request)
+        raise create_http_exception(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"Failed to update password: {str(e)}",
+            error_code=ErrorCodes.INTERNAL_SERVER_ERROR,
             path=request_info["path"],
             method=request_info["method"],
             trace_id=request_info["trace_id"]

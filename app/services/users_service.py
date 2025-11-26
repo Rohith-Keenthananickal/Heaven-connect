@@ -5,6 +5,8 @@ from fastapi import HTTPException, status
 from app.models.user import User, Guest, Host, AreaCoordinator, BankDetails, AuthProvider, UserStatus, UserType, ApprovalStatus
 from app.schemas.users import UserCreate, UserUpdate, UserSearchRequest
 from app.services.base_service import BaseService
+from app.services.communication_client import communication_client
+from app.core.config import settings
 from app.utils.error_handler import (
     create_http_exception
 )
@@ -14,12 +16,13 @@ from app.utils.direct_bcrypt import verify_password
 from app.utils.atp_uuid import generate_atp_uuid
 from app.schemas.errors import ErrorCodes, ErrorMessages
 from datetime import datetime
-from app.services.email_service import email_service
 import random
 import string
 import logging
 
 logger = logging.getLogger(__name__)
+
+OTP_PURPOSE_PASSWORD_RESET = "password_reset"
 
 
 class UsersService(BaseService[User, UserCreate, UserUpdate]):
@@ -1272,8 +1275,8 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         }
 
     # Email OTP Authentication methods
-    async def send_email_otp(self, db: AsyncSession, email: str) -> dict:
-        """Send OTP to user's email for login"""
+    async def send_email_otp(self, db: AsyncSession, email: str, purpose: str) -> dict:
+        """Send OTP to user's email for login or password reset"""
         try:
             # Check if user exists with this email
             user = await self.get_by_email(db, email)
@@ -1316,31 +1319,37 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 is_used=False
             )
             db.add(otp_record)
-            
-            # Send OTP email first (before committing to database)
-            email_sent = await email_service.send_login_otp_email(
-                db=db,
-                email=email,
-                otp_code=otp_code,
-                user_name=user["full_name"],
-                expires_in_minutes=10
-            )
-            
-            # Only commit if email was sent successfully
-            if email_sent:
+
+            if purpose == OTP_PURPOSE_PASSWORD_RESET:
+                delivery_success = await communication_client.send_password_reset_email(
+                    email=email,
+                    user_name=user.get("full_name") or email,
+                    otp_code=otp_code,
+                    expiry_minutes=settings.OTP_EXPIRE_MINUTES
+                )
+            else:
+                delivery_success = await communication_client.send_login_otp(
+                    email=email,
+                    otp_code=otp_code,
+                    purpose=purpose,
+                    metadata={
+                        "user_id": user["id"],
+                        "full_name": user["full_name"],
+                    }
+                )
+
+            if delivery_success:
                 await db.commit()
             else:
                 await db.rollback()
-            
-            if not email_sent:
                 raise create_http_exception(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    message="Failed to send OTP email",
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    message="Failed to dispatch OTP through communication server",
                     error_code=ErrorCodes.EMAIL_SEND_FAILED
                 )
             
             return {
-                "message": "OTP sent successfully to your email",
+                "message": "OTP generated successfully",
                 "email": email,
                 "expires_in_minutes": 10
             }
@@ -1476,7 +1485,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         except Exception as e:
             logger.error(f"Failed to mark phone as verified: {e}")
 
-    async def resend_email_otp(self, db: AsyncSession, email: str) -> dict:
+    async def resend_email_otp(self, db: AsyncSession, email: str, purpose: str) -> dict:
         """Resend OTP to user's email"""
         try:
             # Check if user exists
@@ -1519,31 +1528,38 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 is_used=False
             )
             db.add(otp_record)
-            
-            # Send OTP email first (before committing to database)
-            email_sent = await email_service.send_login_otp_email(
-                db=db,
-                email=email,
-                otp_code=otp_code,
-                user_name=user["full_name"],
-                expires_in_minutes=10
-            )
-            
-            # Only commit if email was sent successfully
-            if email_sent:
+
+            if purpose == OTP_PURPOSE_PASSWORD_RESET:
+                delivery_success = await communication_client.send_password_reset_email(
+                    email=email,
+                    user_name=user.get("full_name") or email,
+                    otp_code=otp_code,
+                    expiry_minutes=settings.OTP_EXPIRE_MINUTES
+                )
+            else:
+                delivery_success = await communication_client.send_login_otp(
+                    email=email,
+                    otp_code=otp_code,
+                    purpose=purpose,
+                    metadata={
+                        "user_id": user["id"],
+                        "full_name": user["full_name"],
+                        "resend": True
+                    }
+                )
+
+            if delivery_success:
                 await db.commit()
             else:
                 await db.rollback()
-            
-            if not email_sent:
                 raise create_http_exception(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    message="Failed to send OTP email",
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    message="Failed to dispatch OTP through communication server",
                     error_code=ErrorCodes.EMAIL_SEND_FAILED
                 )
             
             return {
-                "message": "OTP resent successfully to your email",
+                "message": "OTP regenerated successfully",
                 "email": email,
                 "expires_in_minutes": 10
             }
@@ -1560,6 +1576,26 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
     def _generate_otp(self, length: int = 6) -> str:
         """Generate a random OTP code"""
         return ''.join(random.choices(string.digits, k=length))
+
+    async def update_password_after_reset(
+        self,
+        db: AsyncSession,
+        *,
+        user: User,
+        new_password: str
+    ) -> dict:
+        """Update user's password after successful OTP verification"""
+        if not new_password:
+            raise create_http_exception(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                message="New password must be provided",
+                error_code=ErrorCodes.BAD_REQUEST
+            )
+
+        user.password_hash = get_password_hash(new_password)
+        await db.commit()
+        await db.refresh(user)
+        return self._convert_user_to_dict(user)
 
     async def get_atp_statistics(
         self, 

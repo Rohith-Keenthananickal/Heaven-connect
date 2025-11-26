@@ -25,7 +25,6 @@ from app.routers.grama_panchayats import router as grama_panchayats_router
 from app.routers.corporations import router as corporations_router
 from app.routers.municipalities import router as municipalities_router
 from app.routers.training import router as training_router
-from app.routers.communication import router as communication_router
 from app.routers.enquiries import router as enquiries_router
 from app.routers.issues import router as issues_router
 
@@ -77,7 +76,6 @@ app.include_router(grama_panchayats_router, prefix="/api/v1")
 app.include_router(corporations_router, prefix="/api/v1")
 app.include_router(municipalities_router, prefix="/api/v1")
 app.include_router(training_router, prefix="/api/v1")
-app.include_router(communication_router, prefix="/api/v1")
 app.include_router(enquiries_router, prefix="/api/v1")
 app.include_router(issues_router, prefix="/api/v1")
 

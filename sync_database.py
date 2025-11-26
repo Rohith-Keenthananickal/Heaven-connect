@@ -25,9 +25,6 @@ from app.models.training import (
     TrainingModule, TrainingContent, TrainingProgress, 
     ContentType, TrainingStatus
 )
-from app.models.communication import (
-    EmailTemplate, EmailLog, EmailStatus, EmailType
-)
 
 def sync_database():
     """
