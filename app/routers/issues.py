@@ -92,7 +92,27 @@ async def create_issue(
     issue: IssueCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new issue"""
+    """
+    Create a new issue
+    
+    Example for SUPPORT type issue:
+    ```json
+    {
+        "issue": "WiFi Connection Issues",
+        "type": "SUPPORT",
+        "description": "Guest reporting intermittent WiFi connectivity in Room 101",
+        "priority": "HIGH",
+        "issue_status": "OPEN",
+        "created_by_id": 1,
+        "property_id": 1,
+        "assigned_to_id": null,
+        "attachments": []
+    }
+    ```
+    
+    Note: An initial activity log is automatically created when the issue is created.
+    To add more activities, use the POST /issues/{issue_id}/activities endpoint.
+    """
     try:
         db_issue = await issue_service.create_issue(db, obj_in=issue)
         db_issue = await issue_service.get_issue_with_details(db, db_issue.id)

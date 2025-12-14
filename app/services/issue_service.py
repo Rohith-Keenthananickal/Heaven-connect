@@ -359,7 +359,9 @@ class IssueService(BaseService[Issue, IssueCreate, IssueUpdate]):
         query = select(Issue).options(
             selectinload(Issue.created_by),
             selectinload(Issue.assigned_to),
-            selectinload(Issue.property)
+            selectinload(Issue.property),
+            selectinload(Issue.activities),
+            selectinload(Issue.escalations)
         )
         count_query = select(func.count()).select_from(Issue)
         
