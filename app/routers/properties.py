@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from app.database import get_db, get_sync_db
@@ -9,7 +9,8 @@ from app.schemas.property import (
     PropertyCreateAPIResponse, PropertyGetAPIResponse, PropertyUpdateAPIResponse,
     PropertyDeleteAPIResponse, PropertyStatusUpdateAPIResponse,
     PropertyApprovalCreate, PropertyApprovalAPIResponse, PropertyApprovalResponse, PropertyApprovalListResponse, VerificationType,
-    PropertyVerificationStatusUpdate, PropertyVerificationStatusAPIResponse
+    PropertyVerificationStatusUpdate, PropertyVerificationStatusAPIResponse,
+    ATPAutoAllocationAPIResponse
 )
 from app.models.property import PropertyVerificationStatus
 from app.services.property_service import PropertyService
@@ -338,4 +339,35 @@ async def update_property_verification_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update property verification status: {str(e)}"
+        )
+
+
+@router.patch("/property/atp-auto-allocate", response_model=ATPAutoAllocationAPIResponse)
+async def auto_allocate_atp(
+    property_id: int = Query(..., description="ID of the property to allocate ATP for"),
+    db: Session = Depends(get_sync_db)
+):
+    """
+    Automatically allocate an Area Coordinator (ATP) to a property based on:
+    - Geographic proximity (searching within expanding radius: 5km to 50km)
+    - Workload balance (lowest assigned_properties count)
+    - Seniority (earliest created_at for tie-breaking)
+    
+    The endpoint searches for approved ATPs starting from 5km radius and expands
+    by 5km increments up to 50km until an ATP is found.
+    """
+    try:
+        result = PropertyService.auto_allocate_atp(db, property_id)
+        
+        return ATPAutoAllocationAPIResponse(
+            status="success",
+            data=result,
+            message="ATP allocated successfully"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to auto-allocate ATP: {str(e)}"
         ) 

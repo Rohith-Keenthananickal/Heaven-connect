@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, String, DateTime, Boolean, Date, ForeignKey, JSON, Enum
+from sqlalchemy import Float, Integer, String, DateTime, Boolean, Date, ForeignKey, JSON, Enum
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -207,6 +207,8 @@ class Location(Base):
     property_id: Mapped[int] = mapped_column(Integer, ForeignKey("properties.id"), unique=True, nullable=False)
     address: Mapped[str] = mapped_column(String(1000), nullable=False)
     google_map_link: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     floor: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     elderly_friendly: Mapped[bool] = mapped_column(Boolean, default=False)
     

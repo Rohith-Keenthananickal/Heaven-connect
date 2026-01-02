@@ -499,4 +499,20 @@ class PropertyVerificationStatusUpdate(BaseModel):
 class PropertyVerificationStatusAPIResponse(BaseModel):
     status: str = "success"
     data: dict
+    message: str
+
+
+class ATPAutoAllocationResponse(BaseModel):
+    """Response data for ATP auto-allocation"""
+    property_id: int
+    area_coordinator_id: int
+    atp_uuid: Optional[str]
+    distance_km: float
+    search_radius_km: int
+
+
+class ATPAutoAllocationAPIResponse(BaseModel):
+    """Response schema for ATP auto-allocation endpoint"""
+    status: str = "success"
+    data: ATPAutoAllocationResponse
     message: str 

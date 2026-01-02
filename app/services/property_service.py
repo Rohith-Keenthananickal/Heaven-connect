@@ -8,13 +8,15 @@ from app.models.property import (
     Availability, PropertyAgreement, PropertyApproval, PhotoCategory, PropertyType, PropertyStatus, 
     VerificationStatus, PropertyVerificationStatus
 )
-from app.models.user import User
+from app.models.user import User, AreaCoordinator, ApprovalStatus
 from app.schemas.property import (
     PropertyProfileCreate, PropertyDocumentsCreate, RoomCreate, 
     FacilityCreate, LocationCreate, AvailabilityCreate, 
-    PropertyAgreementCreate, PropertyOnboardingStatus, PropertyTypeCreate, PropertyTypeUpdate
+    PropertyAgreementCreate, PropertyOnboardingStatus, PropertyTypeCreate, PropertyTypeUpdate,
+    PropertyResponse
 )
 from app.utils.error_handler import create_server_error_http_exception
+from app.utils.distance import haversine_distance
 
 
 class PropertyTypeService:
@@ -488,8 +490,10 @@ class PropertyService:
     def search_properties(db: Session, search_request) -> dict:
         """Search properties with pagination and filters"""
         try:
-            # Build base query with joins for property type
-            query = db.query(Property).join(Property.property_type, isouter=True)
+            # Build base query with joins for property type and eager load the relationship
+            query = db.query(Property).join(Property.property_type, isouter=True).options(
+                joinedload(Property.property_type)
+            )
             filters = []
             
             # Apply user ID filter
@@ -563,6 +567,42 @@ class PropertyService:
             # Execute query
             properties = query.all()
             
+            # Convert Property objects to PropertyResponse format
+            # PropertyResponse expects property_type_name which isn't on the Property model
+            property_responses = []
+            for prop in properties:
+                # Create a dict with all property fields plus property_type_name
+                prop_dict = {
+                    "id": prop.id,
+                    "user_id": prop.user_id,
+                    "property_name": prop.property_name,
+                    "alternate_phone": prop.alternate_phone,
+                    "area_coordinator_id": prop.area_coordinator_id,
+                    "property_type_id": prop.property_type_id,
+                    "property_type_name": prop.property_type.name if prop.property_type else None,
+                    "id_proof_type": prop.id_proof_type,
+                    "id_proof_url": prop.id_proof_url,
+                    "certificate_number": prop.certificate_number,
+                    "tourism_certificate_number": prop.tourism_certificate_number,
+                    "tourism_certificate_issued_by": prop.tourism_certificate_issued_by,
+                    "tourism_certificate_photos": prop.tourism_certificate_photos,
+                    "trade_license_number": prop.trade_license_number,
+                    "trade_license_images": prop.trade_license_images,
+                    "cover_image": prop.cover_image,
+                    "exterior_images": prop.exterior_images,
+                    "bedroom_images": prop.bedroom_images,
+                    "bathroom_images": prop.bathroom_images,
+                    "living_dining_images": prop.living_dining_images,
+                    "classification": prop.classification,
+                    "status": prop.status,
+                    "verification_status": prop.verification_status,
+                    "progress_step": prop.progress_step,
+                    "is_verified": prop.is_verified,
+                    "created_at": prop.created_at,
+                    "updated_at": prop.updated_at
+                }
+                property_responses.append(PropertyResponse(**prop_dict))
+            
             # Build pagination info
             pagination_info = {
                 "page": search_request.page,
@@ -574,7 +614,7 @@ class PropertyService:
             }
             
             return {
-                "properties": properties,
+                "properties": property_responses,
                 "pagination": pagination_info
             }
             
@@ -835,4 +875,199 @@ class PropertyService:
             raise create_server_error_http_exception(
                 message=f"Failed to update property verification status: {str(e)}",
                 component="property_verification_status_update"
+            )
+    
+    @staticmethod
+    def auto_allocate_atp(db: Session, property_id: int) -> Dict[str, Any]:
+        """
+        Automatically allocate an Area Coordinator (ATP) to a property based on:
+        1. Geographic proximity (within expanding radius: 5km to 50km)
+        2. Workload balance (lowest assigned_properties count)
+        3. Seniority (earliest created_at for tie-breaking)
+        
+        Args:
+            db: Database session
+            property_id: ID of the property to allocate ATP for
+        
+        Returns:
+            Dictionary containing allocation details:
+            {
+                "property_id": int,
+                "area_coordinator_id": int,
+                "atp_uuid": str,
+                "distance_km": float,
+                "search_radius_km": int
+            }
+        
+        Raises:
+            HTTPException: If property not found, location missing, or no ATP found
+        """
+        try:
+            # Get property
+            property_obj = db.query(Property).filter(Property.id == property_id).first()
+            
+            if not property_obj:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Property not found"
+                )
+            
+            # Query location using raw SQL to avoid model field issues if columns don't exist
+            from sqlalchemy import text, inspect as sqlalchemy_inspect
+            
+            # Check if location exists first
+            location_exists = db.execute(
+                text("SELECT COUNT(*) as count FROM location WHERE property_id = :property_id"),
+                {"property_id": property_id}
+            ).scalar()
+            
+            if not location_exists or location_exists == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Property location not found. Please set property location first."
+                )
+            
+            # Check if latitude/longitude columns exist
+            inspector = sqlalchemy_inspect(db.bind)
+            location_columns = [col['name'] for col in inspector.get_columns('location')]
+            has_coords = 'latitude' in location_columns and 'longitude' in location_columns
+            
+            if not has_coords:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Property location coordinates (latitude/longitude) columns don't exist in the database. Please run database migrations to add these columns."
+                )
+            
+            # Query location coordinates
+            location_result = db.execute(
+                text("SELECT latitude, longitude FROM location WHERE property_id = :property_id"),
+                {"property_id": property_id}
+            ).first()
+            
+            if not location_result:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Property location not found. Please set property location first."
+                )
+            
+            # Get property coordinates from raw SQL result (access by index)
+            prop_lat = location_result[0]
+            prop_lon = location_result[1]
+            
+            # Check if coordinates are set
+            if prop_lat is None or prop_lon is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Property location coordinates (latitude/longitude) are not set. Please update property location with coordinates."
+                )
+            
+            if not has_coords or prop_lat is None or prop_lon is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Property location coordinates (latitude/longitude) are not set or the columns don't exist in the database. Please update property location with coordinates or run database migrations to add latitude/longitude columns."
+                )
+            
+            # Get all approved ATPs with coordinates (once, outside the loop)
+            atps = db.query(AreaCoordinator).join(
+                User, AreaCoordinator.id == User.id
+            ).filter(
+                AreaCoordinator.approval_status == ApprovalStatus.APPROVED,
+                AreaCoordinator.latitude.isnot(None),
+                AreaCoordinator.longitude.isnot(None)
+            ).all()
+            
+            # Calculate distances for all ATPs and store with user info
+            atps_with_distances = []
+            for atp in atps:
+                try:
+                    distance = haversine_distance(
+                        prop_lat, prop_lon,
+                        atp.latitude, atp.longitude
+                    )
+                    # Get User.created_at for each ATP
+                    user = db.query(User).filter(User.id == atp.id).first()
+                    user_created_at = user.created_at if user else datetime.max
+                    # Handle None assigned_properties as 0
+                    assigned_properties = atp.assigned_properties if atp.assigned_properties is not None else 0
+                    
+                    atps_with_distances.append({
+                        "atp": atp,
+                        "distance": distance,
+                        "user_created_at": user_created_at,
+                        "assigned_properties": assigned_properties
+                    })
+                except (ValueError, TypeError):
+                    # Skip ATPs with invalid coordinates
+                    continue
+            
+            # Search for ATPs within expanding radius (5km to 50km in 5km increments)
+            max_radius = 50
+            radius_increment = 5
+            current_radius = radius_increment
+            
+            selected_atp = None
+            selected_distance = None
+            search_radius_used = None
+            
+            while current_radius <= max_radius:
+                # Filter ATPs within current radius
+                atps_within_radius = [
+                    item for item in atps_with_distances
+                    if item["distance"] <= current_radius
+                ]
+                
+                # If we found ATPs within current radius, select the best one
+                if atps_within_radius:
+                    # Sort: first by assigned_properties (ascending), then by created_at (ascending)
+                    atps_within_radius.sort(
+                        key=lambda x: (x["assigned_properties"], x["user_created_at"])
+                    )
+                    
+                    # Select the first one (lowest workload, earliest created_at)
+                    selected_item = atps_within_radius[0]
+                    selected_atp = selected_item["atp"]
+                    selected_distance = selected_item["distance"]
+                    search_radius_used = current_radius
+                    break
+                
+                # If no ATPs found, expand search radius
+                current_radius += radius_increment
+            
+            # If no ATP found within 50km
+            if selected_atp is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No approved Area Coordinator (ATP) found within 50km radius of the property location."
+                )
+            
+            # Update property with selected ATP
+            property_obj.area_coordinator_id = selected_atp.id
+            
+            # Increment ATP's assigned_properties count
+            if selected_atp.assigned_properties is None:
+                selected_atp.assigned_properties = 1
+            else:
+                selected_atp.assigned_properties += 1
+            
+            # Commit changes
+            db.commit()
+            db.refresh(property_obj)
+            db.refresh(selected_atp)
+            
+            # Return allocation details
+            return {
+                "property_id": property_id,
+                "area_coordinator_id": selected_atp.id,
+                "atp_uuid": selected_atp.atp_uuid,
+                "distance_km": round(selected_distance, 2),
+                "search_radius_km": search_radius_used
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            db.rollback()
+            raise create_server_error_http_exception(
+                message=f"Failed to auto-allocate ATP: {str(e)}",
+                component="property_atp_auto_allocate"
             ) 

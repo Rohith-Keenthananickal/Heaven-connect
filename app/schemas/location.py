@@ -12,7 +12,8 @@ class LocationBase(BaseModel):
 
 
 class LocationCreate(LocationBase):
-    pass
+    latitude: Optional[float] = Field(None)
+    longitude: Optional[float] = Field(None)
 
 
 class LocationUpdate(BaseModel):
@@ -26,6 +27,8 @@ class LocationResponse(LocationBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    latitude: Optional[float] = Field(None)
+    longitude: Optional[float] = Field(None)
     
     class Config:
         from_attributes = True
