@@ -732,7 +732,17 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
 
     async def activate_user(self, db: AsyncSession, user_id: int) -> Optional[dict]:
         """Activate a user (change status to ACTIVE)"""
-        user = await self.get_or_404(db, user_id, "User not found")
+        # Get User object directly (not dict) to modify it
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            raise create_http_exception(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="User not found",
+                error_code=ErrorCodes.USER_NOT_FOUND
+            )
+        
         user.status = UserStatus.ACTIVE
         await db.commit()
         
@@ -760,7 +770,17 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
 
     async def block_user(self, db: AsyncSession, user_id: int) -> Optional[dict]:
         """Block a user (change status to BLOCKED)"""
-        user = await self.get_or_404(db, user_id, "User not found")
+        # Get User object directly (not dict) to modify it
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            raise create_http_exception(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="User not found",
+                error_code=ErrorCodes.USER_NOT_FOUND
+            )
+        
         user.status = UserStatus.BLOCKED
         await db.commit()
         
@@ -788,7 +808,17 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
 
     async def soft_delete(self, db: AsyncSession, user_id: int) -> Optional[dict]:
         """Soft delete a user (change status to DELETED)"""
-        user = await self.get_or_404(db, user_id, "User not found")
+        # Get User object directly (not dict) to modify it
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
+        
+        if not user:
+            raise create_http_exception(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="User not found",
+                error_code=ErrorCodes.USER_NOT_FOUND
+            )
+        
         user.status = UserStatus.DELETED
         await db.commit()
         

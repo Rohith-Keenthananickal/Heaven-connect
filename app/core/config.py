@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import os
 
 
@@ -29,13 +29,13 @@ class Settings(BaseSettings):
     ALLOWED_IMAGE_EXTENSIONS_STR: str = ".jpg,.jpeg,.png,.webp"
     
     # Add fields to allow direct setting from env vars
-    ALLOWED_IMAGE_EXTENSIONS: str = None
+    ALLOWED_IMAGE_EXTENSIONS: Optional[str] = None
     
     # CORS settings
     CORS_ORIGINS_STR: str = "*"
     
     # Add fields to allow direct setting from env vars
-    CORS_ORIGINS: str = None
+    CORS_ORIGINS: Optional[str] = None
     
     # OTP settings
     OTP_EXPIRE_MINUTES: int = 10

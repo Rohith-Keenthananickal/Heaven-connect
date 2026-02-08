@@ -257,13 +257,40 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
         progress_data: ProgressUpdate
     ) -> TrainingProgress:
         """Update user's training progress"""
-        # Get or create progress record
+        # Get module_id from content if content_id is provided
+        module_id = None
+        if progress_data.content_id:
+            # Get the content to find its module_id
+            content_result = await db.execute(
+                select(TrainingContent)
+                .where(TrainingContent.id == progress_data.content_id)
+            )
+            content = content_result.scalar_one_or_none()
+            if not content:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Training content with id {progress_data.content_id} not found"
+                )
+            module_id = content.module_id
+        else:
+            # If content_id is None, we need module_id to be provided
+            # But ProgressUpdate doesn't have module_id, so this is an error
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="content_id is required to update progress"
+            )
+        
+        # Get or create progress record with correct module_id
         progress = await self.get_or_create_progress(
-            db, user_id, progress_data.content_id or 0, progress_data.content_id
+            db, user_id, module_id, progress_data.content_id
         )
         
         # Update progress
         update_data = progress_data.dict(exclude_unset=True)
+        # Remove user_id and content_id from update_data as they're not part of TrainingProgressUpdate
+        update_data.pop('user_id', None)
+        update_data.pop('content_id', None)
+        
         if 'status' in update_data:
             if update_data['status'] == TrainingStatus.IN_PROGRESS and not progress.started_at:
                 update_data['started_at'] = datetime.utcnow()

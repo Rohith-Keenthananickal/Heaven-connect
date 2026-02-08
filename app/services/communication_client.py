@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import httpx
 
@@ -21,7 +21,7 @@ class CommunicationClient:
         email: str,
         otp_code: str,
         purpose: str,
-        metadata: Dict[str, Any] | None = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Dispatch a login/confirmation OTP through the communication server.
