@@ -165,6 +165,7 @@ class AreaCoordinatorProfileBase(BaseModel):
     rejection_reason: Optional[str] = Field(None, max_length=500)
     
     # ID Proof and Verification fields
+    profile_image: Optional[str] = Field(None, max_length=500)
     id_proof_type: Optional[str] = Field(None, max_length=50, description="Aadhar, PAN, Driving License, etc.")
     id_proof_number: Optional[str] = Field(None, max_length=100)
     pancard_number: Optional[str] = Field(None, max_length=20)

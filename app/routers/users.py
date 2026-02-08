@@ -275,22 +275,38 @@ async def get_user_profile(
         # Return profile based on user type
         if db_user.get("user_type") == "GUEST" and db_user.get("guest_profile"):
             return UserProfileGetAPIResponse(
-                data={"profile": db_user.get("guest_profile"), "type": "guest"},
+                data={
+                    "profile": db_user.get("guest_profile"),
+                    "type": "guest",
+                    "profile_image": db_user.get("profile_image")
+                },
                 message="Guest profile retrieved successfully"
             )
         elif db_user.get("user_type") == "HOST" and db_user.get("host_profile"):
             return UserProfileGetAPIResponse(
-                data={"profile": db_user.get("host_profile"), "type": "host"},
+                data={
+                    "profile": db_user.get("host_profile"),
+                    "type": "host",
+                    "profile_image": db_user.get("profile_image")
+                },
                 message="Host profile retrieved successfully"
             )
         elif db_user.get("user_type") == "AREA_COORDINATOR" and db_user.get("area_coordinator_profile"):
             return UserProfileGetAPIResponse(
-                data={"profile": db_user.get("area_coordinator_profile"), "type": "area_coordinator"},
+                data={
+                    "profile": db_user.get("area_coordinator_profile"),
+                    "type": "area_coordinator",
+                    "profile_image": db_user.get("profile_image")
+                },
                 message="Area coordinator profile retrieved successfully"
             )
         else:
             return UserProfileGetAPIResponse(
-                data={"profile": None, "type": "no_profile"},
+                data={
+                    "profile": None,
+                    "type": "no_profile",
+                    "profile_image": db_user.get("profile_image")
+                },
                 message="No profile found for user"
             )
             
