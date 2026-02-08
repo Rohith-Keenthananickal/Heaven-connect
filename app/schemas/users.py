@@ -321,6 +321,7 @@ class UserResponse(BaseModel):
     status: UserStatus
     created_at: datetime
     updated_at: datetime
+    profile_image: Optional[str] = None
     
     # Profile data
     guest_profile: Optional[GuestProfileResponse] = None
