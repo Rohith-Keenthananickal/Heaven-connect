@@ -205,6 +205,7 @@ class Location(Base):
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     property_id: Mapped[int] = mapped_column(Integer, ForeignKey("properties.id"), unique=True, nullable=False)
+    experience_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("experiences.id"), nullable=True)
     address: Mapped[str] = mapped_column(String(1000), nullable=False)
     google_map_link: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

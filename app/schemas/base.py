@@ -1,11 +1,14 @@
 from pydantic import BaseModel
 from typing import Any, Optional, List
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
 
 
-class BaseResponse(BaseModel):
+class BaseResponse(BaseModel,Generic[T]):
     """Base response schema with status, data, and message fields"""
     status: str = "success"
-    data: Any
+    data: T
     message: Optional[str] = None
 
 
@@ -19,20 +22,20 @@ class PaginationInfo(BaseModel):
     has_prev: bool
 
 
-class PaginatedResponse(BaseModel):
+class PaginatedResponse(BaseModel,Generic[T]):
     """Paginated response schema with status, data, message, and pagination"""
     status: str = "success"
-    data: List[Any]
+    data: List[T]
     message: Optional[str] = None
     pagination: PaginationInfo
 
 
-class ErrorResponse(BaseModel):
+class ErrorResponse(BaseModel,Generic[T]):
     """Error response schema"""
     status: str = "error"
-    detail: str
+    detail: T
     
 
-class MessageResponse(BaseModel):
+class MessageResponse(BaseModel,Generic[T]):
     """Message response schema"""
-    message: str
+    message: T

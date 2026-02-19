@@ -333,6 +333,8 @@ class LocationResponse(BaseModel):
     google_map_link: Optional[str]
     floor: Optional[str]
     elderly_friendly: bool
+    experience_id: Optional[int]
+    property_id: Optional[int]
     
     # Nearby places information
     nearby_airport: Optional[str]

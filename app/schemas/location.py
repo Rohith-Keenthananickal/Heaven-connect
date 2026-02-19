@@ -4,7 +4,8 @@ from datetime import datetime
 
 
 class LocationBase(BaseModel):
-    property_id: int
+    property_id: Optional[int] = None
+    experience_id: Optional[int] = None
     address: str = Field(..., min_length=5, max_length=1000)
     google_map_link: Optional[str] = Field(None, max_length=1000)
     floor: Optional[str] = Field(None, max_length=50)

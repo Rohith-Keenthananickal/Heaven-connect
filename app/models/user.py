@@ -70,6 +70,10 @@ class User(Base):
     # Issue relationships
     created_issues: Mapped[list["Issue"]] = relationship("Issue", foreign_keys="Issue.created_by_id", back_populates="created_by")
     assigned_issues: Mapped[list["Issue"]] = relationship("Issue", foreign_keys="Issue.assigned_to_id", back_populates="assigned_to")
+    
+    # Experience relationships
+    experiences: Mapped[list["Experience"]] = relationship("Experience", foreign_keys="Experience.user_id", back_populates="user")
+    coordinated_experiences: Mapped[list["Experience"]] = relationship("Experience", foreign_keys="Experience.area_coordinator_id", back_populates="area_coordinator")
 
 
 class Guest(Base):

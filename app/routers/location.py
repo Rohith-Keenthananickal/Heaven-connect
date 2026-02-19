@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+from app.schemas.base import BaseResponse
 from app.schemas.location import LocationCreate, LocationUpdate, LocationResponse, LocationListResponse
 from app.services.location_service import location_service
 
@@ -9,7 +10,7 @@ from app.services.location_service import location_service
 router = APIRouter(prefix="/location", tags=["Location"])
 
 
-@router.post("/")
+@router.post("/",response_model=BaseResponse[LocationResponse])
 async def create_location(location: LocationCreate, db: AsyncSession = Depends(get_db)):
     """Create a new location"""
     try:

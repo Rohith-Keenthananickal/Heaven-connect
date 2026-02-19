@@ -3,6 +3,7 @@ from .property import (
     Property, Room, Facility, PropertyPhoto, 
     Location, Availability, PropertyAgreement, PropertyApproval, VerificationStatus, PropertyVerificationStatus
 )
+from .experience import Experience, DurationUnit, ExperienceStatus, ExperienceApprovalStatus
 from .location import District, GramaPanchayat
 from .training import TrainingModule, TrainingContent, TrainingProgress, ContentType, TrainingStatus
 from .enquiry import Enquiry, Gender, IDCardType, EnquiryStatus
@@ -49,5 +50,9 @@ __all__ = [
     "IssueStatusEnum",
     "Priority",
     "EscalationLevel",
-    "ActivityType"
+    "ActivityType",
+    "Experience",
+    "DurationUnit",
+    "ExperienceStatus",
+    "ExperienceApprovalStatus"
 ]
