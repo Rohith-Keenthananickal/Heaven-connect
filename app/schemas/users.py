@@ -425,6 +425,11 @@ class ATPStatisticsData(BaseModel):
     active_properties: int = Field(..., description="Count of active properties with verification_status APPROVED")
     pending_property_applications: int = Field(..., description="Count of pending property applications with verification_status PENDING")
     pending_enquiries: int = Field(..., description="Count of pending enquiries with status PENDING")
+    total_experiences: int = Field(..., description="Total count of experiences")
+    approved_experiences: int = Field(..., description="Count of experiences with approval_status APPROVED")
+    rejected_experiences: int = Field(..., description="Count of experiences with approval_status REJECTED")
+    pending_experiences: int = Field(..., description="Count of experiences with approval_status PENDING")
+    draft_experiences: int = Field(..., description="Count of experiences with approval_status DRAFT")
 
 
 class ATPStatisticsResponse(BaseModel):

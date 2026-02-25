@@ -571,7 +571,7 @@ async def get_atp_statistics(
     statistics_request: ATPStatisticsRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get statistics for an ATP user (active properties, pending applications, pending enquiries)"""
+    """Get statistics for an ATP user (active properties, pending applications, pending enquiries, and experience counts)"""
     try:
         date_filter = None
         if statistics_request.date_filter:
@@ -588,7 +588,12 @@ async def get_atp_statistics(
             data=ATPStatisticsData(
                 active_properties=statistics["active_properties"],
                 pending_property_applications=statistics["pending_property_applications"],
-                pending_enquiries=statistics["pending_enquiries"]
+                pending_enquiries=statistics["pending_enquiries"],
+                total_experiences=statistics["total_experiences"],
+                approved_experiences=statistics["approved_experiences"],
+                rejected_experiences=statistics["rejected_experiences"],
+                pending_experiences=statistics["pending_experiences"],
+                draft_experiences=statistics["draft_experiences"]
             ),
             message="ATP statistics retrieved successfully"
         )

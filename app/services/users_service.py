@@ -1636,6 +1636,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         """Get statistics for an ATP user"""
         from app.models.property import Property, PropertyVerificationStatus
         from app.models.enquiry import Enquiry, EnquiryStatus
+        from app.models.experience import Experience, ExperienceApprovalStatus
         
         # Verify user is an area coordinator and get their ATP UUID
         user = await self.get_or_404(db, user_id, "User not found")
@@ -1661,15 +1662,18 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         # Build date filter conditions
         property_date_filters = []
         enquiry_date_filters = []
+        experience_date_filters = []
         if date_filter:
             if date_filter.get("from_date"):
                 from_datetime = datetime.fromtimestamp(date_filter["from_date"] / 1000)
                 property_date_filters.append(Property.created_at >= from_datetime)
                 enquiry_date_filters.append(Enquiry.created_at >= from_datetime)
+                experience_date_filters.append(Experience.created_at >= from_datetime)
             if date_filter.get("to_date"):
                 to_datetime = datetime.fromtimestamp(date_filter["to_date"] / 1000)
                 property_date_filters.append(Property.created_at <= to_datetime)
                 enquiry_date_filters.append(Enquiry.created_at <= to_datetime)
+                experience_date_filters.append(Experience.created_at <= to_datetime)
         
         # Count active properties (verification_status == APPROVED)
         active_properties_filters = [
@@ -1710,10 +1714,67 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         pending_enquiries_result = await db.execute(pending_enquiries_query)
         pending_enquiries_count = pending_enquiries_result.scalar() or 0
         
+        # Count experiences by approval_status (area_coordinator_id == user_id)
+        base_experience_filters = [Experience.area_coordinator_id == user_id]
+        
+        # Total experiences
+        total_experiences_filters = base_experience_filters.copy()
+        total_experiences_filters.extend(experience_date_filters)
+        total_experiences_query = select(func.count()).select_from(Experience).where(
+            and_(*total_experiences_filters)
+        )
+        total_experiences_result = await db.execute(total_experiences_query)
+        total_experiences_count = total_experiences_result.scalar() or 0
+        
+        # Approved experiences
+        approved_experiences_filters = base_experience_filters.copy()
+        approved_experiences_filters.append(Experience.approval_status == ExperienceApprovalStatus.APPROVED)
+        approved_experiences_filters.extend(experience_date_filters)
+        approved_experiences_query = select(func.count()).select_from(Experience).where(
+            and_(*approved_experiences_filters)
+        )
+        approved_experiences_result = await db.execute(approved_experiences_query)
+        approved_experiences_count = approved_experiences_result.scalar() or 0
+        
+        # Rejected experiences
+        rejected_experiences_filters = base_experience_filters.copy()
+        rejected_experiences_filters.append(Experience.approval_status == ExperienceApprovalStatus.REJECTED)
+        rejected_experiences_filters.extend(experience_date_filters)
+        rejected_experiences_query = select(func.count()).select_from(Experience).where(
+            and_(*rejected_experiences_filters)
+        )
+        rejected_experiences_result = await db.execute(rejected_experiences_query)
+        rejected_experiences_count = rejected_experiences_result.scalar() or 0
+        
+        # Pending experiences
+        pending_experiences_filters = base_experience_filters.copy()
+        pending_experiences_filters.append(Experience.approval_status == ExperienceApprovalStatus.PENDING)
+        pending_experiences_filters.extend(experience_date_filters)
+        pending_experiences_query = select(func.count()).select_from(Experience).where(
+            and_(*pending_experiences_filters)
+        )
+        pending_experiences_result = await db.execute(pending_experiences_query)
+        pending_experiences_count = pending_experiences_result.scalar() or 0
+        
+        # Draft experiences
+        draft_experiences_filters = base_experience_filters.copy()
+        draft_experiences_filters.append(Experience.approval_status == ExperienceApprovalStatus.DRAFT)
+        draft_experiences_filters.extend(experience_date_filters)
+        draft_experiences_query = select(func.count()).select_from(Experience).where(
+            and_(*draft_experiences_filters)
+        )
+        draft_experiences_result = await db.execute(draft_experiences_query)
+        draft_experiences_count = draft_experiences_result.scalar() or 0
+        
         return {
             "active_properties": active_properties_count,
             "pending_property_applications": pending_properties_count,
-            "pending_enquiries": pending_enquiries_count
+            "pending_enquiries": pending_enquiries_count,
+            "total_experiences": total_experiences_count,
+            "approved_experiences": approved_experiences_count,
+            "rejected_experiences": rejected_experiences_count,
+            "pending_experiences": pending_experiences_count,
+            "draft_experiences": draft_experiences_count
         }
 
 
