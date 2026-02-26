@@ -126,6 +126,7 @@ class PropertyService:
         # Create property profile
         property_obj = Property(
             id=user_id,
+            user_id=user_id,
             property_name=profile_data.property_name,
             alternate_phone=profile_data.alternate_phone,
             property_type_id=profile_data.property_type_id,
