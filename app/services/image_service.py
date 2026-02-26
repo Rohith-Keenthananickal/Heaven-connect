@@ -1,5 +1,6 @@
 import os
 import uuid
+import re
 from datetime import datetime
 from typing import Optional, List
 from fastapi import UploadFile, HTTPException, status
@@ -226,6 +227,54 @@ class ImageService:
         unique_id = str(uuid.uuid4())[:8]
         return f"{timestamp}_{unique_id}.{extension}"
 
+    def _sanitize_filename_for_metadata(self, filename: str) -> str:
+        """
+        Sanitize filename to ensure it only contains ASCII characters for S3 metadata.
+        S3 metadata can only contain ASCII characters.
+        
+        Args:
+            filename: Original filename
+            
+        Returns:
+            ASCII-safe filename string
+        """
+        if not filename:
+            return ""
+        
+        # Normalize Unicode characters first (handles things like smart quotes, em dashes, etc.)
+        try:
+            import unicodedata
+            # Normalize to NFKD form to decompose characters
+            normalized = unicodedata.normalize('NFKD', filename)
+            # Remove non-ASCII characters (this removes combining marks and non-ASCII chars)
+            ascii_filename = normalized.encode('ascii', 'ignore').decode('ascii')
+        except (UnicodeEncodeError, UnicodeDecodeError, ImportError):
+            # Fallback: replace non-ASCII characters with underscore
+            ascii_filename = re.sub(r'[^\x00-\x7F]', '_', filename)
+        
+        # Replace any remaining problematic characters with underscores
+        # Keep only alphanumeric, dots, hyphens, underscores, and spaces
+        # Note: S3 metadata allows spaces, so we keep them
+        ascii_filename = re.sub(r'[^a-zA-Z0-9._\-\s]', '_', ascii_filename)
+        
+        # Replace multiple consecutive underscores with single underscore (but keep spaces)
+        ascii_filename = re.sub(r'_+', '_', ascii_filename)
+        
+        # Remove leading/trailing underscores and spaces
+        ascii_filename = ascii_filename.strip('_ ')
+        
+        # Limit length to avoid issues (S3 metadata values have size limits)
+        max_length = 255
+        if len(ascii_filename) > max_length:
+            # Keep the extension if present
+            if '.' in ascii_filename:
+                name, ext = ascii_filename.rsplit('.', 1)
+                ascii_filename = name[:max_length - len(ext) - 1] + '.' + ext
+            else:
+                ascii_filename = ascii_filename[:max_length]
+        
+        return ascii_filename
+
     async def _process_and_upload_to_s3(self, file: UploadFile, s3_key: str, config: dict) -> dict:
         """Process and upload the image file to S3"""
         try:
@@ -271,11 +320,13 @@ class ImageService:
             processed_content = output.getvalue()
             
             # Upload to S3
+            # Sanitize filename for S3 metadata (must be ASCII-only)
+            sanitized_filename = self._sanitize_filename_for_metadata(file.filename)
             metadata = {
                 "dimensions": f"{image.size[0]}x{image.size[1]}",
                 "format": image.format or "JPEG",
                 "mode": image.mode,
-                "original_filename": file.filename
+                "original_filename": sanitized_filename
             }
             
             await s3_service.upload_file(
