@@ -20,7 +20,7 @@ async def upload_single_image(
     Upload a single image file
     
     - **file**: The image file to upload
-    - **image_type**: Type of image (user, property, room, document, bank, profile)
+    - **image_type**: Type of image (user, property, room, document, bank, profile, logo, complain, service, experience, area_event)
     """
     try:
         # Upload the image to S3
@@ -43,7 +43,7 @@ async def upload_single_image(
 @router.post("/upload/multiple", response_model=MultipleImageUploadResponse)
 async def upload_multiple_images(
     files: List[UploadFile] = File(..., description="Multiple image files to upload"),
-    image_type: str = Form(..., description="Type of image (user, property, room, document, bank, profile)")
+    image_type: str = Form(..., description="Type of image (user, property, room, document, bank, profile, logo, complain, service, experience, area_event)")
 ):
     """
     Upload multiple image files of the same type

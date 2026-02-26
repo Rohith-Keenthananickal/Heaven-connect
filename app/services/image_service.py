@@ -49,6 +49,36 @@ class ImageService:
                 "allowed_formats": ["jpg", "jpeg", "png", "webp"],
                 "max_dimensions": (400, 400),
                 "quality": 80
+            },
+            "logo": {
+                "max_size_mb": 30,
+                "allowed_formats": ["jpg", "jpeg", "png", "webp"],
+                "max_dimensions": (100, 100),
+                "quality": 80
+            },
+            "complain": {
+                "max_size_mb": 20,
+                "allowed_formats": ["jpg", "jpeg", "png", "webp"],
+                "max_dimensions": (100, 100),
+                "quality": 80
+            },
+            "service": {
+                "max_size_mb": 20,
+                "allowed_formats": ["jpg", "jpeg", "png", "webp"],
+                "max_dimensions": (100, 100),
+                "quality": 80
+            },
+            "experience": {
+                "max_size_mb": 20,
+                "allowed_formats": ["jpg", "jpeg", "png", "webp"],
+                "max_dimensions": (100, 100),
+                "quality": 80
+            },
+            "area_event": {
+                "max_size_mb": 20,
+                "allowed_formats": ["jpg", "jpeg", "png", "webp"],
+                "max_dimensions": (100, 100),
+                "quality": 80
             }
         }
 

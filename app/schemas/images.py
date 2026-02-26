@@ -5,7 +5,7 @@ from datetime import datetime
 
 class ImageUploadRequest(BaseModel):
     """Request schema for image upload"""
-    image_type: str = Field(..., description="Type of image (user, property, room, document, bank, profile)")
+    image_type: str = Field(..., description="Type of image (user, property, room, document, bank, profile, logo, complain, service, experience, area_event)")
 
 
 class ImageUploadResponse(BaseModel):
