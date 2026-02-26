@@ -10,7 +10,7 @@ from app.schemas.property import (
     PropertyDeleteAPIResponse, PropertyStatusUpdateAPIResponse,
     PropertyApprovalCreate, PropertyApprovalAPIResponse, PropertyApprovalResponse, PropertyApprovalListResponse, VerificationType,
     PropertyVerificationStatusUpdate, PropertyVerificationStatusAPIResponse,
-    ATPAutoAllocationAPIResponse
+    ATPAutoAllocationAPIResponse, ATPInRangeAPIResponse
 )
 from app.models.property import PropertyVerificationStatus
 from app.services.property_service import PropertyService
@@ -23,27 +23,16 @@ router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
 @router.post("/profile", response_model=PropertyCreateAPIResponse, status_code=status.HTTP_201_CREATED)
-async def create_property_profile(
+def create_property_profile(
     property_profile: PropertyProfileCreate,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_sync_db)
 ):
     """Create a new property profile"""
     try:
-        db_property = await PropertyService.create_property_profile(
-            db, 
+        db_property = PropertyService.create_property_profile(
+            db,
             property_profile.user_id,
-            property_profile.property_name,
-            property_profile.alternate_phone,
-            property_profile.area_coordinator_id,
-            property_profile.property_type_id,
-            property_profile.id_proof_type,
-            property_profile.id_proof_url,
-            property_profile.certificate_number,
-            property_profile.trade_license_number,
-            property_profile.classification,
-            property_profile.status,
-            property_profile.progress_step,
-            property_profile.is_verified
+            property_profile
         )
         return PropertyCreateAPIResponse(
             data=db_property,
@@ -85,16 +74,16 @@ async def get_property_profile(
 
 
 @router.put("/profile/{property_id}", response_model=PropertyUpdateAPIResponse)
-async def update_property_profile(
+def update_property_profile(
     property_id: int,
     property_update: PropertyProfileUpdate,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_sync_db)
 ):
     """Update a property profile"""
     try:
-        db_property = await PropertyService.update_property_profile(
-            db, 
-            property_id, 
+        db_property = PropertyService.update_property_profile(
+            db,
+            property_id,
             property_update
         )
         if not db_property:
@@ -370,4 +359,33 @@ async def auto_allocate_atp(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to auto-allocate ATP: {str(e)}"
-        ) 
+        )
+
+
+@router.get("/property/atp-in-range", response_model=ATPInRangeAPIResponse)
+def check_atp_in_range(
+    property_id: int = Query(..., description="ID of the property"),
+    atp_uuid: str = Query(..., description="ATP UUID (e.g. ATP-01234)"),
+    radius_km: float = Query(..., gt=0, description="Radius in kilometers to check"),
+    db: Session = Depends(get_sync_db)
+):
+    """
+    Check whether an ATP (Area Coordinator) is within the given radius of a property.
+
+    Uses property location (latitude/longitude) and ATP coordinates with haversine distance.
+    Returns within_range (true/false), distance_km, and the requested radius_km.
+    """
+    try:
+        result = PropertyService.check_atp_in_range(db, property_id, atp_uuid, radius_km)
+        return ATPInRangeAPIResponse(
+            status="success",
+            data=result,
+            message="ATP in range check completed successfully"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check ATP in range: {str(e)}"
+        )
