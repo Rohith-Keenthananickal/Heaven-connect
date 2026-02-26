@@ -1350,14 +1350,79 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             )
             db.add(otp_record)
 
-            if purpose == OTP_PURPOSE_PASSWORD_RESET:
-                delivery_success = await communication_client.send_password_reset_email(
+            # Get user name for template context
+            user_name = user.get("full_name") or email
+            expiry_minutes = settings.OTP_EXPIRE_MINUTES
+            
+            # Map purpose to template type and create appropriate template context
+            if purpose == "PASSWORD_RESET" or purpose == OTP_PURPOSE_PASSWORD_RESET:
+                delivery_success = await communication_client.send_template_email(
                     email=email,
-                    user_name=user.get("full_name") or email,
-                    otp_code=otp_code,
-                    expiry_minutes=settings.OTP_EXPIRE_MINUTES
+                    template_type="PASSWORD_RESET",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Password Reset - Heaven Connect",
+                    }
+                )
+            elif purpose == "EMAIL_VERIFICATION":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="EMAIL_VERIFICATION",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Email Verification - Heaven Connect",
+                    }
+                )
+            elif purpose == "WELCOME":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="WELCOME",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Welcome to Heaven Connect",
+                    }
+                )
+            elif purpose == "USER_REGISTRATION":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="USER_REGISTRATION",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Complete Your Registration - Heaven Connect",
+                    }
+                )
+            elif purpose == "CONFIRMATION":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="CONFIRMATION",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Confirm Your Action - Heaven Connect",
+                    }
+                )
+            elif purpose == "PASSWORD_CHANGED":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="PASSWORD_CHANGED",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Password Changed - Heaven Connect",
+                    }
                 )
             else:
+                # Fallback to generic template or legacy method
                 delivery_success = await communication_client.send_login_otp(
                     email=email,
                     otp_code=otp_code,
@@ -1559,14 +1624,79 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             )
             db.add(otp_record)
 
-            if purpose == OTP_PURPOSE_PASSWORD_RESET:
-                delivery_success = await communication_client.send_password_reset_email(
+            # Get user name for template context
+            user_name = user.get("full_name") or email
+            expiry_minutes = settings.OTP_EXPIRE_MINUTES
+            
+            # Map purpose to template type and create appropriate template context
+            if purpose == "PASSWORD_RESET" or purpose == OTP_PURPOSE_PASSWORD_RESET:
+                delivery_success = await communication_client.send_template_email(
                     email=email,
-                    user_name=user.get("full_name") or email,
-                    otp_code=otp_code,
-                    expiry_minutes=settings.OTP_EXPIRE_MINUTES
+                    template_type="PASSWORD_RESET",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Password Reset - Heaven Connect",
+                    }
+                )
+            elif purpose == "EMAIL_VERIFICATION":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="EMAIL_VERIFICATION",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Email Verification - Heaven Connect",
+                    }
+                )
+            elif purpose == "WELCOME":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="WELCOME",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Welcome to Heaven Connect",
+                    }
+                )
+            elif purpose == "USER_REGISTRATION":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="USER_REGISTRATION",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Complete Your Registration - Heaven Connect",
+                    }
+                )
+            elif purpose == "CONFIRMATION":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="CONFIRMATION",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Confirm Your Action - Heaven Connect",
+                    }
+                )
+            elif purpose == "PASSWORD_CHANGED":
+                delivery_success = await communication_client.send_template_email(
+                    email=email,
+                    template_type="PASSWORD_CHANGED",
+                    template_context={
+                        "user_name": user_name,
+                        "otp_code": otp_code,
+                        "expiry_minutes": expiry_minutes,
+                        "subject": "Password Changed - Heaven Connect",
+                    }
                 )
             else:
+                # Fallback to generic template or legacy method
                 delivery_success = await communication_client.send_login_otp(
                     email=email,
                     otp_code=otp_code,

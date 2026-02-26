@@ -29,8 +29,13 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 # Email OTP Schemas
 class EmailOTPPurpose(str, Enum):
     """Purpose for email-based OTP requests"""
-    CONFIRMATION = "confirmation"
-    PASSWORD_RESET = "password_reset"
+    CONFIRMATION = "CONFIRMATION"
+    PASSWORD_RESET = "PASSWORD_RESET"
+    WELCOME = "WELCOME"
+    USER_REGISTRATION = "USER_REGISTRATION"
+    EMAIL_VERIFICATION = "EMAIL_VERIFICATION"
+    PASSWORD_CHANGED = "PASSWORD_CHANGED"
+
 
 
 class EmailOTPRequest(BaseModel):
