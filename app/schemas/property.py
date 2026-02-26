@@ -4,6 +4,7 @@ from datetime import datetime, date
 import enum
 from app.models.property import PropertyClassification, PropertyStatus, PropertyVerificationStatus, FacilityCategory, PhotoCategory, BedType, RoomView
 from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
+from app.schemas.users import AreaCoordinatorProfileResponse
 
 
 # Specific Response Models for proper Swagger documentation
@@ -116,6 +117,7 @@ class PropertyProfileCreate(BaseModel):
     user_id: int = Field(..., description="ID of the user who owns this property")
     property_name: str = Field(..., min_length=2, max_length=255)
     alternate_phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
+    atp_id: Optional[int] = Field(None, description="Optional area coordinator (ATP) ID to assign to this property")
     property_type_id: Optional[int] = Field(None, description="ID of the property type")
     id_proof_type: Optional[str] = Field(None, min_length=2, max_length=100)
     id_proof_url: Optional[str] = Field(None, max_length=500)
@@ -221,6 +223,7 @@ class PropertyProfileUpdate(BaseModel):
     user_id: Optional[int] = Field(None, description="ID of the user who owns this property")
     property_name: Optional[str] = Field(None, min_length=2, max_length=255)
     alternate_phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
+    atp_id: Optional[int] = Field(None, description="Optional area coordinator (ATP) ID to assign to this property")
     property_type_id: Optional[int] = Field(None, description="ID of the property type")
     id_proof_type: Optional[str] = Field(None, min_length=2, max_length=100)
     id_proof_url: Optional[str] = Field(None, max_length=500)
@@ -517,4 +520,21 @@ class ATPAutoAllocationAPIResponse(BaseModel):
     """Response schema for ATP auto-allocation endpoint"""
     status: str = "success"
     data: ATPAutoAllocationResponse
-    message: str 
+    message: str
+
+
+class ATPInRangeResponse(BaseModel):
+    """Response data for ATP-in-range check"""
+    property_id: int
+    atp_uuid: str
+    radius_km: float
+    distance_km: float
+    within_range: bool
+    atp_details: AreaCoordinatorProfileResponse
+
+
+class ATPInRangeAPIResponse(BaseModel):
+    """Response schema for ATP-in-range check endpoint"""
+    status: str = "success"
+    data: ATPInRangeResponse
+    message: str

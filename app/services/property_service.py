@@ -10,8 +10,8 @@ from app.models.property import (
 )
 from app.models.user import User, AreaCoordinator, ApprovalStatus
 from app.schemas.property import (
-    PropertyProfileCreate, PropertyDocumentsCreate, RoomCreate, 
-    FacilityCreate, LocationCreate, AvailabilityCreate, 
+    PropertyProfileCreate, PropertyProfileUpdate, PropertyDocumentsCreate, RoomCreate,
+    FacilityCreate, LocationCreate, AvailabilityCreate,
     PropertyAgreementCreate, PropertyOnboardingStatus, PropertyTypeCreate, PropertyTypeUpdate,
     PropertyResponse
 )
@@ -136,6 +136,7 @@ class PropertyService:
             user_id=user_id,
             property_name=profile_data.property_name,
             alternate_phone=profile_data.alternate_phone,
+            area_coordinator_id=profile_data.atp_id,
             property_type_id=profile_data.property_type_id,
             id_proof_type=profile_data.id_proof_type,
             id_proof_url=profile_data.id_proof_url,
@@ -161,7 +162,25 @@ class PropertyService:
         db.commit()
         db.refresh(property_obj)
         return property_obj
-    
+
+    @staticmethod
+    def update_property_profile(
+        db: Session, property_id: int, update_data: PropertyProfileUpdate
+    ) -> Optional[Property]:
+        """Update property profile; only provided (non-None) fields are updated."""
+        property_obj = PropertyService.get_property_by_id(db, property_id)
+        if not property_obj:
+            return None
+        update_dict = update_data.model_dump(exclude_unset=True)
+        if "atp_id" in update_dict:
+            update_dict["area_coordinator_id"] = update_dict.pop("atp_id")
+        for key, value in update_dict.items():
+            if hasattr(property_obj, key):
+                setattr(property_obj, key, value)
+        db.commit()
+        db.refresh(property_obj)
+        return property_obj
+
     @staticmethod
     def update_property_documents(
         db: Session, 
@@ -1080,4 +1099,86 @@ class PropertyService:
             raise create_server_error_http_exception(
                 message=f"Failed to auto-allocate ATP: {str(e)}",
                 component="property_atp_auto_allocate"
-            ) 
+            )
+
+    @staticmethod
+    def check_atp_in_range(
+        db: Session, property_id: int, atp_uuid: str, radius_km: float
+    ) -> Dict[str, Any]:
+        """
+        Check whether an ATP (Area Coordinator) is within the given radius of a property.
+
+        Uses the same property location (latitude/longitude from location table) and
+        ATP coordinates (AreaCoordinator.latitude, AreaCoordinator.longitude) with
+        haversine distance.
+
+        Returns:
+            Dict with property_id, atp_uuid, radius_km, distance_km, within_range (bool).
+        """
+        from sqlalchemy import text, inspect as sqlalchemy_inspect
+
+        property_obj = db.query(Property).filter(Property.id == property_id).first()
+        if not property_obj:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Property not found"
+            )
+
+        location_exists = db.execute(
+            text("SELECT COUNT(*) as count FROM location WHERE property_id = :property_id"),
+            {"property_id": property_id}
+        ).scalar()
+        if not location_exists or location_exists == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property location not found. Please set property location first."
+            )
+
+        inspector = sqlalchemy_inspect(db.bind)
+        location_columns = [col["name"] for col in inspector.get_columns("location")]
+        if "latitude" not in location_columns or "longitude" not in location_columns:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property location coordinates (latitude/longitude) are not available."
+            )
+
+        location_result = db.execute(
+            text("SELECT latitude, longitude FROM location WHERE property_id = :property_id"),
+            {"property_id": property_id}
+        ).first()
+        if not location_result or location_result[0] is None or location_result[1] is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property location coordinates (latitude/longitude) are not set."
+            )
+        prop_lat, prop_lon = float(location_result[0]), float(location_result[1])
+
+        atp = (
+            db.query(AreaCoordinator)
+            .filter(
+                AreaCoordinator.atp_uuid == atp_uuid,
+                AreaCoordinator.latitude.isnot(None),
+                AreaCoordinator.longitude.isnot(None),
+            )
+            .first()
+        )
+        if not atp:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"ATP with atp_uuid '{atp_uuid}' not found or has no location coordinates."
+            )
+
+        distance_km = haversine_distance(
+            prop_lat, prop_lon,
+            float(atp.latitude), float(atp.longitude)
+        )
+        within_range = distance_km <= radius_km
+
+        return {
+            "property_id": property_id,
+            "atp_uuid": atp_uuid,
+            "radius_km": radius_km,
+            "distance_km": round(distance_km, 2),
+            "within_range": within_range,
+            "atp_details": atp,
+        }
