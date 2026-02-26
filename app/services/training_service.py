@@ -250,6 +250,87 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
         )
         return await self.create(db, obj_in=progress_data)
 
+    async def _check_and_update_module_completion(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        module_id: int
+    ) -> Optional[TrainingProgress]:
+        """Check if all required contents in a module are completed and update module-level progress"""
+        # Get all required contents for this module
+        required_contents_result = await db.execute(
+            select(TrainingContent)
+            .where(
+                and_(
+                    TrainingContent.module_id == module_id,
+                    TrainingContent.is_required == True
+                )
+            )
+        )
+        required_contents = required_contents_result.scalars().all()
+        
+        if not required_contents:
+            # If no required contents, module is considered completed
+            # Get or create module-level progress
+            module_progress = await self.get_or_create_progress(
+                db, user_id, module_id, content_id=None
+            )
+            if module_progress.status != TrainingStatus.COMPLETED:
+                update_data = TrainingProgressUpdate(
+                    status=TrainingStatus.COMPLETED,
+                    progress_percentage=100,
+                    completed_at=datetime.utcnow() if not module_progress.completed_at else module_progress.completed_at
+                )
+                return await self.update(db, db_obj=module_progress, obj_in=update_data)
+            return module_progress
+        
+        # Check if all required contents are completed
+        required_content_ids = [content.id for content in required_contents]
+        completed_contents_result = await db.execute(
+            select(func.count(TrainingProgress.id))
+            .where(
+                and_(
+                    TrainingProgress.user_id == user_id,
+                    TrainingProgress.module_id == module_id,
+                    TrainingProgress.content_id.in_(required_content_ids),
+                    TrainingProgress.status == TrainingStatus.COMPLETED
+                )
+            )
+        )
+        completed_count = completed_contents_result.scalar() or 0
+        
+        # If all required contents are completed, update module-level progress
+        if completed_count == len(required_contents):
+            # Get or create module-level progress
+            module_progress = await self.get_or_create_progress(
+                db, user_id, module_id, content_id=None
+            )
+            
+            # Only update if not already completed
+            if module_progress.status != TrainingStatus.COMPLETED:
+                # Calculate total time spent on all contents in the module
+                time_spent_result = await db.execute(
+                    select(func.sum(TrainingProgress.time_spent_seconds))
+                    .where(
+                        and_(
+                            TrainingProgress.user_id == user_id,
+                            TrainingProgress.module_id == module_id
+                        )
+                    )
+                )
+                total_time_spent = time_spent_result.scalar() or 0
+                
+                update_data = TrainingProgressUpdate(
+                    status=TrainingStatus.COMPLETED,
+                    progress_percentage=100,
+                    time_spent_seconds=total_time_spent,
+                    completed_at=datetime.utcnow() if not module_progress.completed_at else module_progress.completed_at
+                )
+                return await self.update(db, db_obj=module_progress, obj_in=update_data)
+            return module_progress
+        
+        return None
+
     async def update_progress(
         self, 
         db: AsyncSession, 
@@ -299,7 +380,13 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
         
         update_data['last_accessed_at'] = datetime.utcnow()
         
-        return await self.update(db, db_obj=progress, obj_in=TrainingProgressUpdate(**update_data))
+        updated_progress = await self.update(db, db_obj=progress, obj_in=TrainingProgressUpdate(**update_data))
+        
+        # Check if content was marked as completed, then check module completion
+        if 'status' in update_data and update_data['status'] == TrainingStatus.COMPLETED:
+            await self._check_and_update_module_completion(db, user_id, module_id)
+        
+        return updated_progress
 
     async def submit_quiz(
         self, 
@@ -350,6 +437,10 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
         )
         
         await self.update(db, db_obj=progress, obj_in=update_data)
+        
+        # If quiz was passed (completed), check module completion
+        if passed:
+            await self._check_and_update_module_completion(db, user_id, content.module_id)
         
         return {
             "content_id": quiz_data.content_id,
