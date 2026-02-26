@@ -143,8 +143,10 @@ class PropertyService:
             bedroom_images=profile_data.bedroom_images,
             bathroom_images=profile_data.bathroom_images,
             living_dining_images=profile_data.living_dining_images,
+            classification=profile_data.classification,
             status=profile_data.status,
-            progress_step=2  # Move to step 2
+            progress_step=profile_data.progress_step,
+            is_verified=profile_data.is_verified
         )
         
         db.add(property_obj)

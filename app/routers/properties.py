@@ -23,27 +23,16 @@ router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
 @router.post("/profile", response_model=PropertyCreateAPIResponse, status_code=status.HTTP_201_CREATED)
-async def create_property_profile(
+def create_property_profile(
     property_profile: PropertyProfileCreate,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_sync_db)
 ):
     """Create a new property profile"""
     try:
-        db_property = await PropertyService.create_property_profile(
-            db, 
+        db_property = PropertyService.create_property_profile(
+            db,
             property_profile.user_id,
-            property_profile.property_name,
-            property_profile.alternate_phone,
-            property_profile.area_coordinator_id,
-            property_profile.property_type_id,
-            property_profile.id_proof_type,
-            property_profile.id_proof_url,
-            property_profile.certificate_number,
-            property_profile.trade_license_number,
-            property_profile.classification,
-            property_profile.status,
-            property_profile.progress_step,
-            property_profile.is_verified
+            property_profile
         )
         return PropertyCreateAPIResponse(
             data=db_property,
