@@ -122,7 +122,14 @@ class PropertyService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Property profile already exists"
             )
-        
+        # Validate property_type_id exists when provided
+        if profile_data.property_type_id is not None:
+            property_type = PropertyTypeService.get_property_type_by_id(db, profile_data.property_type_id)
+            if not property_type:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Property type with id {profile_data.property_type_id} not found. Create the property type first or use a valid id."
+                )
         # Create property profile
         property_obj = Property(
             id=user_id,
