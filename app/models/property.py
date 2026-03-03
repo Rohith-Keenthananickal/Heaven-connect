@@ -86,6 +86,11 @@ class RoomView(str, enum.Enum):
     PARTIAL_VIEW = "PARTIAL_VIEW"
 
 
+class SegmentStatus(str, enum.Enum):
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+
+
 class PropertyType(Base):
     __tablename__ = "property_types"
     
@@ -100,6 +105,20 @@ class PropertyType(Base):
     properties: Mapped[List["Property"]] = relationship("Property", back_populates="property_type")
 
 
+class Segment(Base):
+    __tablename__ = "segments"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    status: Mapped[SegmentStatus] = mapped_column(Enum(SegmentStatus), default=SegmentStatus.ACTIVE)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    properties: Mapped[List["Property"]] = relationship("Property", back_populates="segment")
+
+
 class Property(Base):
     __tablename__ = "properties"
     
@@ -109,6 +128,7 @@ class Property(Base):
     alternate_phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     area_coordinator_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
     property_type_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("property_types.id"), nullable=True)
+    segment_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("segments.id"), nullable=True)
     id_proof_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     id_proof_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     certificate_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -141,6 +161,7 @@ class Property(Base):
     user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="property_profile")
     area_coordinator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[area_coordinator_id], back_populates="coordinated_properties")
     property_type: Mapped[Optional["PropertyType"]] = relationship("PropertyType", back_populates="properties")
+    segment: Mapped[Optional["Segment"]] = relationship("Segment", back_populates="properties")
     rooms: Mapped[List["Room"]] = relationship("Room", back_populates="property", cascade="all, delete-orphan")
     facilities: Mapped[List["Facility"]] = relationship("Facility", back_populates="property", cascade="all, delete-orphan")
     property_photos: Mapped[List["PropertyPhoto"]] = relationship("PropertyPhoto", back_populates="property", cascade="all, delete-orphan")

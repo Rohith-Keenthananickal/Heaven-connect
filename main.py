@@ -13,6 +13,7 @@ from app.routers.users import router as users_router
 from app.routers.otp_verifications import router as otp_router
 from app.routers.properties import router as properties_router
 from app.routers.property_types import router as property_types_router
+from app.routers.segments import router as segments_router
 from app.routers.rooms import router as rooms_router
 from app.routers.facilities import router as facilities_router
 from app.routers.property_photos import router as property_photos_router
@@ -65,6 +66,7 @@ app.include_router(users_router, prefix="/api/v1")
 app.include_router(otp_router, prefix="/api/v1")
 app.include_router(properties_router, prefix="/api/v1")
 app.include_router(property_types_router, prefix="/api/v1")
+app.include_router(segments_router, prefix="/api/v1")
 app.include_router(rooms_router, prefix="/api/v1")
 app.include_router(facilities_router, prefix="/api/v1")
 app.include_router(property_photos_router, prefix="/api/v1")

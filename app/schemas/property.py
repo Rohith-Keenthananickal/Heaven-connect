@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 import enum
-from app.models.property import PropertyClassification, PropertyStatus, PropertyVerificationStatus, FacilityCategory, PhotoCategory, BedType, RoomView
+from app.models.property import PropertyClassification, PropertyStatus, PropertyVerificationStatus, FacilityCategory, PhotoCategory, BedType, RoomView, SegmentStatus
 from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
 from app.schemas.users import AreaCoordinatorProfileResponse
 
@@ -70,6 +70,37 @@ class PropertyTypeResponse(PropertyTypeBase):
 
 class PropertyTypeListResponse(BaseModel):
     property_types: List[PropertyTypeResponse]
+    total: int
+
+
+# Segment (master) schemas
+class SegmentBase(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100, description="Segment name")
+    description: Optional[str] = Field(None, max_length=500, description="Description of the segment")
+    status: SegmentStatus = Field(SegmentStatus.ACTIVE, description="Segment status (ACTIVE, INACTIVE)")
+
+
+class SegmentCreate(SegmentBase):
+    pass
+
+
+class SegmentUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    status: Optional[SegmentStatus] = None
+
+
+class SegmentResponse(SegmentBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SegmentListResponse(BaseModel):
+    segments: List[SegmentResponse]
     total: int
 
 
