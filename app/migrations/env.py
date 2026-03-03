@@ -14,7 +14,7 @@ from app.core.config import settings
 # Import all models to ensure they are registered with SQLAlchemy
 from app.models.user import User, OTPVerification
 from app.models.property import (
-    Property, Room, Facility, PropertyPhoto, 
+    Property, Room, Facility, FacilityMaster, PropertyPhoto,
     Location, Availability, PropertyAgreement
 )
 

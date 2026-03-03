@@ -1,6 +1,7 @@
 from .user import User, OTPVerification, Guest, Host, AreaCoordinator, BankDetails, ApprovalStatus
 from .property import (
-    Property, Room, Facility, PropertyPhoto, 
+    Property, Room, Facility, FacilityMaster, FacilityMasterType, FacilityMasterStatus,
+    Segment, SegmentType, SegmentStatus, PropertyPhoto,
     Location, Availability, PropertyAgreement, PropertyApproval, VerificationStatus, PropertyVerificationStatus
 )
 from .experience import Experience, DurationUnit, ExperienceStatus, ExperienceApprovalStatus
@@ -23,7 +24,13 @@ __all__ = [
     "ApprovalStatus",
     "Property",
     "Room",
+    "Segment",
+    "SegmentType",
+    "SegmentStatus",
     "Facility",
+    "FacilityMaster",
+    "FacilityMasterType",
+    "FacilityMasterStatus",
     "PropertyPhoto",
     "Location", 
     "Availability",

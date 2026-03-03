@@ -16,6 +16,7 @@ from app.routers.property_types import router as property_types_router
 from app.routers.segments import router as segments_router
 from app.routers.rooms import router as rooms_router
 from app.routers.facilities import router as facilities_router
+from app.routers.facility_master import router as facility_master_router
 from app.routers.property_photos import router as property_photos_router
 from app.routers.location import router as location_router
 from app.routers.availability import router as availability_router
@@ -69,6 +70,7 @@ app.include_router(property_types_router, prefix="/api/v1")
 app.include_router(segments_router, prefix="/api/v1")
 app.include_router(rooms_router, prefix="/api/v1")
 app.include_router(facilities_router, prefix="/api/v1")
+app.include_router(facility_master_router, prefix="/api/v1")
 app.include_router(property_photos_router, prefix="/api/v1")
 app.include_router(location_router, prefix="/api/v1")
 app.include_router(availability_router, prefix="/api/v1")
