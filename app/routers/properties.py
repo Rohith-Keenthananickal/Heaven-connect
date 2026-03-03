@@ -52,20 +52,24 @@ def create_property_profile(
 
 
 @router.get("/profile/{property_id}", response_model=PropertyGetAPIResponse)
-async def get_property_profile(
+def get_property_profile(
     property_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_sync_db)
 ):
     """Get a specific property profile by ID"""
     try:
-        db_property = await PropertyService.get_property_profile(db, property_id)
+        db_property = PropertyService.get_property_by_id(db, property_id)
         if not db_property:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Property profile not found"
             )
+        data = PropertyProfileResponse.model_validate(db_property)
+        data.property_type_name = (
+            db_property.property_type.name if db_property.property_type else None
+        )
         return PropertyGetAPIResponse(
-            data=db_property,
+            data=data,
             message="Property retrieved successfully"
         )
     except HTTPException:
@@ -95,8 +99,12 @@ def update_property_profile(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Property profile not found"
             )
+        data = PropertyProfileResponse.model_validate(db_property)
+        data.property_type_name = (
+            db_property.property_type.name if db_property.property_type else None
+        )
         return PropertyUpdateAPIResponse(
-            data=db_property,
+            data=data,
             message="Property updated successfully"
         )
     except HTTPException:

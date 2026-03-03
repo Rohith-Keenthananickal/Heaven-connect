@@ -1,3 +1,4 @@
+from shlex import join
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, func, and_, or_
@@ -412,12 +413,14 @@ class PropertyService:
     def get_property_by_id(db: Session, property_id: int) -> Optional[Property]:
         """Get property by ID with all relationships"""
         return db.query(Property).options(
+            joinedload(Property.property_type),
             joinedload(Property.rooms),
             joinedload(Property.facilities),
             joinedload(Property.property_photos),
             joinedload(Property.location),
             joinedload(Property.availability),
-            joinedload(Property.agreements)
+            joinedload(Property.agreements),
+            joinedload(Property.segment)
         ).filter(Property.id == property_id).first()
     
     @staticmethod
