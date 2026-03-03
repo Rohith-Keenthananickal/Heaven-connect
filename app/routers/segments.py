@@ -14,7 +14,7 @@ from app.models.property import SegmentStatus
 router = APIRouter(prefix="/segments", tags=["Segments"])
 
 
-@router.post("/", response_model=SegmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=SegmentResponse, status_code=status.HTTP_201_CREATED)
 async def create_segment(
     segment_data: SegmentCreate,
     db: AsyncSession = Depends(get_db),
@@ -71,7 +71,7 @@ async def create_segment(
         )
 
 
-@router.get("/", response_model=SegmentListResponse)
+@router.get("", response_model=SegmentListResponse)
 async def get_segments(
     active_only: bool = Query(True, description="Return only active segments"),
     db: AsyncSession = Depends(get_db),
