@@ -34,8 +34,12 @@ def create_property_profile(
             property_profile.user_id,
             property_profile
         )
+        data = PropertyProfileResponse.model_validate(db_property)
+        data.property_type_name = (
+            db_property.property_type.name if db_property.property_type else None
+        )
         return PropertyCreateAPIResponse(
-            data=db_property,
+            data=data,
             message="Property created successfully"
         )
     except HTTPException:

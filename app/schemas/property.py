@@ -179,11 +179,11 @@ class PropertyProfileCreate(BaseModel):
 
 class PropertyProfileResponse(BaseModel):
     id: int
-    property_name: Optional[str]
-    alternate_phone: Optional[str]
-    area_coordinator_id: Optional[int]
-    property_type_id: Optional[int]
-    property_type_name: Optional[str]
+    property_name: Optional[str] = None
+    alternate_phone: Optional[str] = None
+    area_coordinator_id: Optional[int] = None
+    property_type_id: Optional[int] = None
+    property_type_name: Optional[str] = None  # Populated from property_type relationship when building response
     classification: PropertyClassification
     status: PropertyStatus
     verification_status: PropertyVerificationStatus

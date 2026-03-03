@@ -123,7 +123,7 @@ class Property(Base):
     __tablename__ = "properties"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     property_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     alternate_phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     area_coordinator_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
@@ -158,7 +158,7 @@ class Property(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships (backwards reference import needed for PropertyApproval)
-    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="property_profile")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="properties")
     area_coordinator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[area_coordinator_id], back_populates="coordinated_properties")
     property_type: Mapped[Optional["PropertyType"]] = relationship("PropertyType", back_populates="properties")
     segment: Mapped[Optional["Segment"]] = relationship("Segment", back_populates="properties")
