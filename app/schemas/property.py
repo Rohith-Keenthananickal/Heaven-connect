@@ -150,6 +150,7 @@ class PropertyProfileCreate(BaseModel):
     alternate_phone: Optional[str] = Field(None, pattern=r'^\+?[1-9]\d{1,14}$')
     atp_id: Optional[int] = Field(None, description="Optional area coordinator (ATP) ID to assign to this property")
     property_type_id: Optional[int] = Field(None, description="ID of the property type")
+    segment_id: Optional[int] = Field(None, description="ID of the segment")
     id_proof_type: Optional[str] = Field(None, min_length=2, max_length=100)
     id_proof_url: Optional[str] = Field(None, max_length=500)
     certificate_number: Optional[str] = Field(None, max_length=100)

@@ -116,12 +116,12 @@ class PropertyService:
     def create_property_profile(db: Session, user_id: int, profile_data: PropertyProfileCreate) -> Property:
         """Create property profile (Step 1)"""
         # Check if property profile already exists
-        existing_property = db.query(Property).filter(Property.id == user_id).first()
-        if existing_property:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Property profile already exists"
-            )
+        # existing_property = db.query(Property).filter(Property.id == user_id).first()
+        # if existing_property:
+        #     raise HTTPException(
+        #         status_code=status.HTTP_400_BAD_REQUEST,
+        #         detail="Property profile already exists"
+        #     )
         # Validate property_type_id exists when provided
         if profile_data.property_type_id is not None:
             property_type = PropertyTypeService.get_property_type_by_id(db, profile_data.property_type_id)
@@ -138,6 +138,7 @@ class PropertyService:
             alternate_phone=profile_data.alternate_phone,
             area_coordinator_id=profile_data.atp_id,
             property_type_id=profile_data.property_type_id,
+            segment_id=profile_data.segment_id,
             id_proof_type=profile_data.id_proof_type,
             id_proof_url=profile_data.id_proof_url,
             certificate_number=profile_data.certificate_number,
