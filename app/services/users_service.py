@@ -1310,21 +1310,33 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         try:
             # Check if user exists with this email
             user = await self.get_by_email(db, email)
-            if not user:
-                raise create_http_exception(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    message="User with this email not found",
-                    error_code=ErrorCodes.USER_NOT_FOUND
-                )
-            
-            # Check if user is active
-            if user["status"] != UserStatus.ACTIVE:
-                raise create_http_exception(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    message="User account is not active",
-                    error_code=ErrorCodes.USER_INACTIVE
-                )
-            
+
+            # EMAIL_VERIFICATION: used on user creation page - allow only if email is NOT taken
+            if purpose == "EMAIL_VERIFICATION":
+                if user:
+                    raise create_http_exception(
+                        status_code=status.HTTP_409_CONFLICT,
+                        message="An account with this email already exists",
+                        error_code=ErrorCodes.USER_ALREADY_EXISTS
+                    )
+                user_name = email  # No user yet, use email for template
+            else:
+                # For other purposes, user must exist
+                if not user:
+                    raise create_http_exception(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        message="User with this email not found",
+                        error_code=ErrorCodes.USER_NOT_FOUND
+                    )
+                # Check if user is active
+                if user["status"] != UserStatus.ACTIVE:
+                    raise create_http_exception(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        message="User account is not active",
+                        error_code=ErrorCodes.USER_INACTIVE
+                    )
+                user_name = user.get("full_name") or email
+
             # Generate 6-digit OTP
             otp_code = self._generate_otp()
             
@@ -1350,10 +1362,8 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             )
             db.add(otp_record)
 
-            # Get user name for template context
-            user_name = user.get("full_name") or email
             expiry_minutes = settings.OTP_EXPIRE_MINUTES
-            
+
             # Map purpose to template type and create appropriate template context
             if purpose == "PASSWORD_RESET" or purpose == OTP_PURPOSE_PASSWORD_RESET:
                 delivery_success = await communication_client.send_template_email(
@@ -1583,23 +1593,32 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
     async def resend_email_otp(self, db: AsyncSession, email: str, purpose: str) -> dict:
         """Resend OTP to user's email"""
         try:
-            # Check if user exists
             user = await self.get_by_email(db, email)
-            if not user:
-                raise create_http_exception(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    message="User with this email not found",
-                    error_code=ErrorCodes.USER_NOT_FOUND
-                )
-            
-            # Check if user is active
-            if user["status"] != UserStatus.ACTIVE:
-                raise create_http_exception(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    message="User account is not active",
-                    error_code=ErrorCodes.USER_INACTIVE
-                )
-            
+
+            # EMAIL_VERIFICATION: same logic as send - allow only if email is NOT taken
+            if purpose == "EMAIL_VERIFICATION":
+                if user:
+                    raise create_http_exception(
+                        status_code=status.HTTP_409_CONFLICT,
+                        message="An account with this email already exists",
+                        error_code=ErrorCodes.USER_ALREADY_EXISTS
+                    )
+                user_name = email
+            else:
+                if not user:
+                    raise create_http_exception(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        message="User with this email not found",
+                        error_code=ErrorCodes.USER_NOT_FOUND
+                    )
+                if user["status"] != UserStatus.ACTIVE:
+                    raise create_http_exception(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        message="User account is not active",
+                        error_code=ErrorCodes.USER_INACTIVE
+                    )
+                user_name = user.get("full_name") or email
+
             # Generate new OTP
             otp_code = self._generate_otp()
             
@@ -1624,10 +1643,8 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             )
             db.add(otp_record)
 
-            # Get user name for template context
-            user_name = user.get("full_name") or email
             expiry_minutes = settings.OTP_EXPIRE_MINUTES
-            
+
             # Map purpose to template type and create appropriate template context
             if purpose == "PASSWORD_RESET" or purpose == OTP_PURPOSE_PASSWORD_RESET:
                 delivery_success = await communication_client.send_template_email(
