@@ -54,7 +54,7 @@ class User(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
-    property_profile: Mapped[Optional["Property"]] = relationship("Property", foreign_keys="Property.user_id", back_populates="user", uselist=False)
+    properties: Mapped[list["Property"]] = relationship("Property", foreign_keys="Property.user_id", back_populates="user")
     coordinated_properties: Mapped[list["Property"]] = relationship("Property", foreign_keys="Property.area_coordinator_id", back_populates="area_coordinator")
     
     # Type-specific profile relationships

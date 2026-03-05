@@ -14,7 +14,7 @@ from app.core.config import settings
 # Import all models to ensure they are registered with SQLAlchemy
 from app.models.user import User, OTPVerification
 from app.models.property import (
-    Property, Room, Facility, PropertyPhoto, 
+    Property, Room, Facility, FacilityMaster, PropertyPhoto,
     Location, Availability, PropertyAgreement
 )
 
@@ -22,8 +22,12 @@ from app.models.property import (
 # access to the values within the .ini file in use.
 config = context.config
 
-# Set the SQLAlchemy URL from our settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Use alembic.ini's sqlalchemy.url for migrations so the URL in the config file is used.
+# To use .env instead (same DB as the app), uncomment the next line and comment out the following block.
+# config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+_ini_url = config.get_main_option("sqlalchemy.url")
+if not _ini_url or _ini_url.strip() == "":
+    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL or "")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

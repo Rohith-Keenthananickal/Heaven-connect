@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 import enum
-from app.models.property import PropertyClassification, PropertyStatus, PropertyVerificationStatus, FacilityCategory, PhotoCategory, BedType, RoomView, SegmentStatus
+from app.models.property import PropertyClassification, PropertyStatus, PropertyVerificationStatus, FacilityCategory, PhotoCategory, BedType, RoomView, SegmentStatus, SegmentType
 from app.schemas.base import BaseResponse, PaginatedResponse, PaginationInfo
 from app.schemas.users import AreaCoordinatorProfileResponse
 
@@ -77,6 +77,7 @@ class PropertyTypeListResponse(BaseModel):
 class SegmentBase(BaseModel):
     name: str = Field(..., min_length=2, max_length=100, description="Segment name")
     description: Optional[str] = Field(None, max_length=500, description="Description of the segment")
+    type: SegmentType = Field(SegmentType.PROPERTY, description="Segment type (PROPERTY, EXPERIENCE)")
     status: SegmentStatus = Field(SegmentStatus.ACTIVE, description="Segment status (ACTIVE, INACTIVE)")
 
 
@@ -87,6 +88,7 @@ class SegmentCreate(SegmentBase):
 class SegmentUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
+    type: Optional[SegmentType] = None
     status: Optional[SegmentStatus] = None
 
 
@@ -97,11 +99,6 @@ class SegmentResponse(SegmentBase):
 
     class Config:
         from_attributes = True
-
-
-class SegmentListResponse(BaseModel):
-    segments: List[SegmentResponse]
-    total: int
 
 
 class PropertyStatusUpdate(BaseModel):
@@ -179,11 +176,11 @@ class PropertyProfileCreate(BaseModel):
 
 class PropertyProfileResponse(BaseModel):
     id: int
-    property_name: Optional[str]
-    alternate_phone: Optional[str]
-    area_coordinator_id: Optional[int]
-    property_type_id: Optional[int]
-    property_type_name: Optional[str]
+    property_name: Optional[str] = None
+    alternate_phone: Optional[str] = None
+    area_coordinator_id: Optional[int] = None
+    property_type_id: Optional[int] = None
+    property_type_name: Optional[str] = None  # Populated from property_type relationship when building response
     classification: PropertyClassification
     status: PropertyStatus
     verification_status: PropertyVerificationStatus

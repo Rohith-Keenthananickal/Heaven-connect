@@ -91,6 +91,25 @@ class SegmentStatus(str, enum.Enum):
     INACTIVE = "INACTIVE"
 
 
+class SegmentType(str, enum.Enum):
+    """Segment type: PROPERTY or EXPERIENCE."""
+    PROPERTY = "PROPERTY"
+    EXPERIENCE = "EXPERIENCE"
+
+
+class FacilityMasterType(str, enum.Enum):
+    """Scope of the facility: property-level or room-level."""
+    PROPERTY = "PROPERTY"
+    ROOM = "ROOM"
+
+
+class FacilityMasterStatus(str, enum.Enum):
+    """Status of the facility master (aligned with UserStatus)."""
+    ACTIVE = "ACTIVE"
+    BLOCKED = "BLOCKED"
+    DELETED = "DELETED"
+
+
 class PropertyType(Base):
     __tablename__ = "property_types"
     
@@ -107,23 +126,37 @@ class PropertyType(Base):
 
 class Segment(Base):
     __tablename__ = "segments"
-    
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    type: Mapped[SegmentType] = mapped_column(Enum(SegmentType), default=SegmentType.PROPERTY, nullable=False)
     status: Mapped[SegmentStatus] = mapped_column(Enum(SegmentStatus), default=SegmentStatus.ACTIVE)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
+
     # Relationships
     properties: Mapped[List["Property"]] = relationship("Property", back_populates="segment")
+
+
+class FacilityMaster(Base):
+    """Master list of facility types (e.g. WiFi, Pool) that can be assigned to properties or rooms."""
+    __tablename__ = "facility_masters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False, index=True, comment="Display name of the facility")
+    description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True, comment="Description of the facility")
+    type: Mapped[FacilityMasterType] = mapped_column(Enum(FacilityMasterType), nullable=False, comment="PROPERTY or ROOM")
+    status: Mapped[FacilityMasterStatus] = mapped_column(Enum(FacilityMasterStatus), default=FacilityMasterStatus.ACTIVE, nullable=False)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Property(Base):
     __tablename__ = "properties"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     property_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     alternate_phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     area_coordinator_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
@@ -158,7 +191,7 @@ class Property(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships (backwards reference import needed for PropertyApproval)
-    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="property_profile")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="properties")
     area_coordinator: Mapped[Optional["User"]] = relationship("User", foreign_keys=[area_coordinator_id], back_populates="coordinated_properties")
     property_type: Mapped[Optional["PropertyType"]] = relationship("PropertyType", back_populates="properties")
     segment: Mapped[Optional["Segment"]] = relationship("Segment", back_populates="properties")

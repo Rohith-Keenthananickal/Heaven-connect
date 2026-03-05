@@ -1,25 +1,38 @@
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.database import get_db
+from app.schemas.base import BaseResponse
 from app.schemas.property import (
     SegmentCreate,
     SegmentUpdate,
     SegmentResponse,
-    SegmentListResponse,
 )
-from app.models.property import SegmentStatus
-
+from app.models.property import SegmentStatus, SegmentType
 
 router = APIRouter(prefix="/segments", tags=["Segments"])
 
 
-@router.post("", response_model=SegmentResponse, status_code=status.HTTP_201_CREATED)
+def _row_to_segment_response(row):
+    """Map DB row (id, name, description, type, status, created_at, updated_at) to SegmentResponse."""
+    return SegmentResponse(
+        id=row[0],
+        name=row[1],
+        description=row[2],
+        type=SegmentType(row[3]),
+        status=SegmentStatus(row[4]),
+        created_at=row[5],
+        updated_at=row[6],
+    )
+
+
+@router.post("", response_model=BaseResponse[SegmentResponse], status_code=status.HTTP_201_CREATED)
 async def create_segment(
     segment_data: SegmentCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new segment"""
+    """Create a new segment."""
     try:
         result = await db.execute(
             text("SELECT id FROM segments WHERE name = :name"),
@@ -35,31 +48,25 @@ async def create_segment(
 
         await db.execute(
             text("""
-                INSERT INTO segments (name, description, status, created_at, updated_at)
-                VALUES (:name, :description, :status, NOW(), NOW())
+                INSERT INTO segments (name, description, type, status, created_at, updated_at)
+                VALUES (:name, :description, :type, :status, NOW(), NOW())
             """),
             {
                 "name": segment_data.name,
                 "description": segment_data.description,
+                "type": segment_data.type.value,
                 "status": segment_data.status.value,
             },
         )
         await db.commit()
 
         result = await db.execute(
-            text("SELECT * FROM segments WHERE name = :name"),
+            text("SELECT id, name, description, type, status, created_at, updated_at FROM segments WHERE name = :name"),
             {"name": segment_data.name},
         )
         row = result.fetchone()
 
-        return SegmentResponse(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            status=SegmentStatus(row[3]),
-            created_at=row[4],
-            updated_at=row[5],
-        )
+        return BaseResponse[SegmentResponse](data=_row_to_segment_response(row))
 
     except HTTPException:
         raise
@@ -71,35 +78,38 @@ async def create_segment(
         )
 
 
-@router.get("", response_model=SegmentListResponse)
+@router.get("", response_model=BaseResponse[List[SegmentResponse]])
 async def get_segments(
     active_only: bool = Query(True, description="Return only active segments"),
+    type: Optional[SegmentType] = Query(None, description="Filter by type (PROPERTY, EXPERIENCE)"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get all segments"""
+    """Get all segments with optional filters."""
     try:
-        if active_only:
+        if active_only and type is not None:
             result = await db.execute(
-                text("SELECT * FROM segments WHERE status = :status"),
+                text("SELECT id, name, description, type, status, created_at, updated_at FROM segments WHERE status = :status AND type = :type"),
+                {"status": SegmentStatus.ACTIVE.value, "type": type.value},
+            )
+        elif active_only:
+            result = await db.execute(
+                text("SELECT id, name, description, type, status, created_at, updated_at FROM segments WHERE status = :status"),
                 {"status": SegmentStatus.ACTIVE.value},
             )
+        elif type is not None:
+            result = await db.execute(
+                text("SELECT id, name, description, type, status, created_at, updated_at FROM segments WHERE type = :type"),
+                {"type": type.value},
+            )
         else:
-            result = await db.execute(text("SELECT * FROM segments"))
+            result = await db.execute(
+                text("SELECT id, name, description, type, status, created_at, updated_at FROM segments"),
+            )
 
         rows = result.fetchall()
-        segments = [
-            SegmentResponse(
-                id=row[0],
-                name=row[1],
-                description=row[2],
-                status=SegmentStatus(row[3]),
-                created_at=row[4],
-                updated_at=row[5],
-            )
-            for row in rows
-        ]
+        segments = [_row_to_segment_response(row) for row in rows]
 
-        return {"segments": segments, "total": len(segments)}
+        return BaseResponse[List[SegmentResponse]](data=segments)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -107,15 +117,15 @@ async def get_segments(
         )
 
 
-@router.get("/{segment_id}", response_model=SegmentResponse)
+@router.get("/{segment_id}", response_model=BaseResponse[SegmentResponse])
 async def get_segment(
     segment_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get a specific segment by ID"""
+    """Get a specific segment by ID."""
     try:
         result = await db.execute(
-            text("SELECT * FROM segments WHERE id = :segment_id"),
+            text("SELECT id, name, description, type, status, created_at, updated_at FROM segments WHERE id = :segment_id"),
             {"segment_id": segment_id},
         )
         row = result.fetchone()
@@ -126,14 +136,7 @@ async def get_segment(
                 detail="Segment not found",
             )
 
-        return SegmentResponse(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            status=SegmentStatus(row[3]),
-            created_at=row[4],
-            updated_at=row[5],
-        )
+        return BaseResponse[SegmentResponse](data=_row_to_segment_response(row))
     except HTTPException:
         raise
     except Exception as e:
@@ -143,16 +146,16 @@ async def get_segment(
         )
 
 
-@router.put("/{segment_id}", response_model=SegmentResponse)
+@router.put("/{segment_id}", response_model=BaseResponse[SegmentResponse])
 async def update_segment(
     segment_id: int,
     segment_data: SegmentUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Update a segment"""
+    """Update a segment."""
     try:
         result = await db.execute(
-            text("SELECT * FROM segments WHERE id = :segment_id"),
+            text("SELECT id, name, description, type, status, created_at, updated_at FROM segments WHERE id = :segment_id"),
             {"segment_id": segment_id},
         )
         if not result.fetchone():
@@ -181,6 +184,10 @@ async def update_segment(
             update_fields.append("description = :description")
             params["description"] = segment_data.description
 
+        if segment_data.type is not None:
+            update_fields.append("type = :type")
+            params["type"] = segment_data.type.value
+
         if segment_data.status is not None:
             update_fields.append("status = :status")
             params["status"] = segment_data.status.value
@@ -192,19 +199,12 @@ async def update_segment(
             await db.commit()
 
         result = await db.execute(
-            text("SELECT * FROM segments WHERE id = :segment_id"),
+            text("SELECT id, name, description, type, status, created_at, updated_at FROM segments WHERE id = :segment_id"),
             {"segment_id": segment_id},
         )
         row = result.fetchone()
 
-        return SegmentResponse(
-            id=row[0],
-            name=row[1],
-            description=row[2],
-            status=SegmentStatus(row[3]),
-            created_at=row[4],
-            updated_at=row[5],
-        )
+        return BaseResponse[SegmentResponse](data=_row_to_segment_response(row))
 
     except HTTPException:
         raise
@@ -216,15 +216,15 @@ async def update_segment(
         )
 
 
-@router.delete("/{segment_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{segment_id}", response_model=BaseResponse[dict])
 async def delete_segment(
     segment_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a segment (soft delete by setting status to INACTIVE)"""
+    """Soft delete a segment by setting status to INACTIVE."""
     try:
         result = await db.execute(
-            text("SELECT * FROM segments WHERE id = :segment_id"),
+            text("SELECT id FROM segments WHERE id = :segment_id"),
             {"segment_id": segment_id},
         )
         if not result.fetchone():
@@ -249,7 +249,7 @@ async def delete_segment(
         )
         await db.commit()
 
-        return None
+        return BaseResponse[dict](data={"message": "Segment deleted successfully"})
 
     except HTTPException:
         raise
