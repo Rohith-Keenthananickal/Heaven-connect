@@ -13,6 +13,7 @@ from .issue import (
     IssueType, IssueStatus, IssueStatusEnum, Priority,
     EscalationLevel, ActivityType
 )
+from .app_config import AppConfig
 
 __all__ = [
     "User",
@@ -61,5 +62,6 @@ __all__ = [
     "Experience",
     "DurationUnit",
     "ExperienceStatus",
-    "ExperienceApprovalStatus"
+    "ExperienceApprovalStatus",
+    "AppConfig"
 ]

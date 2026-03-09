@@ -203,6 +203,7 @@ class Property(Base):
     agreements: Mapped[Optional["PropertyAgreement"]] = relationship("PropertyAgreement", back_populates="property", uselist=False, cascade="all, delete-orphan")
     approvals: Mapped[List["PropertyApproval"]] = relationship("PropertyApproval", back_populates="property", cascade="all, delete-orphan")
     issues: Mapped[List["Issue"]] = relationship("Issue", back_populates="property", cascade="all, delete-orphan")
+    property_details: Mapped[Optional["PropertyDetails"]] = relationship("PropertyDetails", back_populates="property", uselist=False, cascade="all, delete-orphan")
 
 
 class Room(Base):
@@ -329,4 +330,44 @@ class PropertyApproval(Base):
     
     # Relationships
     property: Mapped["Property"] = relationship("Property", back_populates="approvals")
-    atp: Mapped["User"] = relationship("User", foreign_keys=[atp_id]) 
+    atp: Mapped["User"] = relationship("User", foreign_keys=[atp_id])
+
+
+class PropertyDetails(Base):
+    """Property operational details, policies, and services."""
+    __tablename__ = "property_details"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    property_id: Mapped[int] = mapped_column(Integer, ForeignKey("properties.id"), unique=True, nullable=False, index=True)
+    
+    # About space and host information
+    about_space: Mapped[Optional[str]] = mapped_column(String(5000), nullable=True, comment="Description of the property space")
+    host_languages: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of languages the host speaks (e.g., ['English', 'Hindi', 'Malayalam'])")
+    other_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Alternate name for the property")
+    
+    # Nearby activities
+    nearby_activities: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of nearby activities (e.g., ['Beach', 'Trekking', 'Water Sports'])")
+    
+    # Check-in/Check-out times (stored as strings, e.g., "14:00" or "2:00 PM")
+    checkin_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, comment="Check-in time (e.g., '14:00' or '2:00 PM')")
+    checkout_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, comment="Check-out time (e.g., '11:00' or '11:00 AM')")
+    
+    # Policy flags
+    smoking_allowed: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether smoking is allowed")
+    pets_allowed: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether pets are allowed")
+    alcohol_allowed: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether alcohol is allowed")
+    visitor_policy: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True, comment="Policy regarding visitors")
+    quiet_hours: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Quiet hours policy (e.g., '10:00 PM - 7:00 AM')")
+    
+    # Service flags
+    comfort_services: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether comfort services are available")
+    meals_available: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether meals are available")
+    airport_pickup: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether airport pickup service is available")
+    laundry_service: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether laundry service is available")
+    housekeeping_frequency: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, comment="Housekeeping frequency (e.g., 'Daily', 'Weekly', 'On Request')")
+    
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    property: Mapped["Property"] = relationship("Property", back_populates="property_details") 

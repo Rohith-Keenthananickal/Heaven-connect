@@ -88,7 +88,7 @@ class BaseService(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """Delete a record by ID"""
         db_obj = await self.get(db, id)
         if db_obj:
-            await db.delete(db_obj)
+            db.delete(db_obj)
             await db.commit()
         return db_obj
 

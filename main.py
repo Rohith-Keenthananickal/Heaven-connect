@@ -30,6 +30,7 @@ from app.routers.training import router as training_router
 from app.routers.enquiries import router as enquiries_router
 from app.routers.issues import router as issues_router
 from app.routers.experiences import router as experiences_router
+from app.routers.app_config import router as app_config_router
 
 # Note: Database tables will be created via startup event for async compatibility
 
@@ -84,6 +85,7 @@ app.include_router(training_router, prefix="/api/v1")
 app.include_router(enquiries_router, prefix="/api/v1")
 app.include_router(issues_router, prefix="/api/v1")
 app.include_router(experiences_router, prefix="/api/v1")
+app.include_router(app_config_router, prefix="/api/v1")
 
 
 @app.get("/")

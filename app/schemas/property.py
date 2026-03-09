@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 import enum
@@ -141,6 +141,63 @@ class PropertyCreate(PropertyBase):
     pass
 
 
+# Property Details Schemas (must be defined before PropertyProfileCreate)
+class PropertyDetailsBase(BaseModel):
+    """Base schema for property details"""
+    about_space: Optional[str] = Field(None, max_length=5000, description="Description of the property space")
+    host_languages: Optional[List[str]] = Field(None, description="Array of languages the host speaks (e.g., ['English', 'Hindi', 'Malayalam'])")
+    other_name: Optional[str] = Field(None, max_length=255, description="Alternate name for the property")
+    nearby_activities: Optional[List[str]] = Field(None, description="Array of nearby activities (e.g., ['Beach', 'Trekking', 'Water Sports'])")
+    checkin_time: Optional[str] = Field(None, max_length=20, description="Check-in time (e.g., '14:00' or '2:00 PM')")
+    checkout_time: Optional[str] = Field(None, max_length=20, description="Check-out time (e.g., '11:00' or '11:00 AM')")
+    smoking_allowed: bool = Field(False, description="Whether smoking is allowed")
+    pets_allowed: bool = Field(False, description="Whether pets are allowed")
+    alcohol_allowed: bool = Field(False, description="Whether alcohol is allowed")
+    visitor_policy: Optional[str] = Field(None, max_length=1000, description="Policy regarding visitors")
+    quiet_hours: Optional[str] = Field(None, max_length=200, description="Quiet hours policy (e.g., '10:00 PM - 7:00 AM')")
+    comfort_services: bool = Field(False, description="Whether comfort services are available")
+    meals_available: bool = Field(False, description="Whether meals are available")
+    airport_pickup: bool = Field(False, description="Whether airport pickup service is available")
+    laundry_service: bool = Field(False, description="Whether laundry service is available")
+    housekeeping_frequency: Optional[str] = Field(None, max_length=100, description="Housekeeping frequency (e.g., 'Daily', 'Weekly', 'On Request')")
+
+
+class PropertyDetailsCreate(PropertyDetailsBase):
+    """Schema for creating property details"""
+    pass
+
+
+class PropertyDetailsUpdate(BaseModel):
+    """Schema for updating property details - all fields optional"""
+    about_space: Optional[str] = Field(None, max_length=5000, description="Description of the property space")
+    host_languages: Optional[List[str]] = Field(None, description="Array of languages the host speaks")
+    other_name: Optional[str] = Field(None, max_length=255, description="Alternate name for the property")
+    nearby_activities: Optional[List[str]] = Field(None, description="Array of nearby activities")
+    checkin_time: Optional[str] = Field(None, max_length=20, description="Check-in time")
+    checkout_time: Optional[str] = Field(None, max_length=20, description="Check-out time")
+    smoking_allowed: Optional[bool] = Field(None, description="Whether smoking is allowed")
+    pets_allowed: Optional[bool] = Field(None, description="Whether pets are allowed")
+    alcohol_allowed: Optional[bool] = Field(None, description="Whether alcohol is allowed")
+    visitor_policy: Optional[str] = Field(None, max_length=1000, description="Policy regarding visitors")
+    quiet_hours: Optional[str] = Field(None, max_length=200, description="Quiet hours policy")
+    comfort_services: Optional[bool] = Field(None, description="Whether comfort services are available")
+    meals_available: Optional[bool] = Field(None, description="Whether meals are available")
+    airport_pickup: Optional[bool] = Field(None, description="Whether airport pickup service is available")
+    laundry_service: Optional[bool] = Field(None, description="Whether laundry service is available")
+    housekeeping_frequency: Optional[str] = Field(None, max_length=100, description="Housekeeping frequency")
+
+
+class PropertyDetailsResponse(PropertyDetailsBase):
+    """Schema for property details response"""
+    id: int
+    property_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PropertyProfileCreate(BaseModel):
     user_id: int = Field(..., description="ID of the user who owns this property")
     property_name: str = Field(..., min_length=2, max_length=255)
@@ -172,6 +229,9 @@ class PropertyProfileCreate(BaseModel):
     status: PropertyStatus = PropertyStatus.ACTIVE
     progress_step: int = Field(1, ge=1, le=9)
     is_verified: bool = False
+    
+    # Property details (optional during creation)
+    property_details: Optional[PropertyDetailsCreate] = Field(None, description="Property operational details, policies, and services")
 
 
 class PropertyProfileResponse(BaseModel):
@@ -194,6 +254,9 @@ class PropertyProfileResponse(BaseModel):
     bathroom_images: Optional[List[str]]
     living_dining_images: Optional[List[str]]
     
+    # Property details
+    property_details: Optional[PropertyDetailsResponse] = None
+    
     created_at: datetime
     updated_at: datetime
 
@@ -204,41 +267,57 @@ class PropertyProfileResponse(BaseModel):
 class PropertyResponse(BaseModel):
     id: int
     user_id: int
-    property_name: Optional[str]
-    alternate_phone: Optional[str]
-    area_coordinator_id: Optional[int]
-    property_type_id: Optional[int]
-    property_type_name: Optional[str]
-    id_proof_type: Optional[str]
-    id_proof_url: Optional[str]
-    certificate_number: Optional[str]
+    property_name: Optional[str] = None
+    alternate_phone: Optional[str] = None
+    area_coordinator_id: Optional[int] = None
+    property_type_id: Optional[int] = None
+    property_type_name: Optional[str] = None
+    id_proof_type: Optional[str] = None
+    id_proof_url: Optional[str] = None
+    certificate_number: Optional[str] = None
     
     # Tourism certificate fields
-    tourism_certificate_number: Optional[str]
-    tourism_certificate_issued_by: Optional[str]
-    tourism_certificate_photos: Optional[List[str]]
+    tourism_certificate_number: Optional[str] = None
+    tourism_certificate_issued_by: Optional[str] = None
+    tourism_certificate_photos: Optional[List[str]] = None
     
     # Trade license fields
-    trade_license_number: Optional[str]
-    trade_license_images: Optional[List[str]]
+    trade_license_number: Optional[str] = None
+    trade_license_images: Optional[List[str]] = None
     
     # Property image fields
-    cover_image: Optional[str]
-    exterior_images: Optional[List[str]]
-    bedroom_images: Optional[List[str]]
-    bathroom_images: Optional[List[str]]
-    living_dining_images: Optional[List[str]]
+    cover_image: Optional[str] = None
+    exterior_images: Optional[List[str]] = None
+    bedroom_images: Optional[List[str]] = None
+    bathroom_images: Optional[List[str]] = None
+    living_dining_images: Optional[List[str]] = None
     
     classification: PropertyClassification
     status: PropertyStatus
     verification_status: PropertyVerificationStatus
     progress_step: int
     is_verified: bool
+    
+    # Property details
+    property_details: Optional[PropertyDetailsResponse] = None
+    
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_encoders={},
+        # Exclude None values when serializing to JSON
+        json_schema_extra={
+            "example": {}
+        }
+    )
+    
+    def model_dump(self, **kwargs):
+        """Override model_dump to exclude None values by default"""
+        if 'exclude_none' not in kwargs:
+            kwargs['exclude_none'] = True
+        return super().model_dump(**kwargs)
 
 
 class PropertyListResponse(BaseModel):
@@ -264,6 +343,9 @@ class PropertyProfileUpdate(BaseModel):
     is_verified: Optional[bool] = None
     cover_image_url: Optional[str] = Field(None, max_length=500, description="URL of the property cover image")
     additional_images: Optional[List[str]] = Field(None, max_items=20, description="List of URLs for additional property images")
+    
+    # Property details (optional during update)
+    property_details: Optional[PropertyDetailsUpdate] = Field(None, description="Property operational details, policies, and services")
 
 
 class PropertyDocumentsCreate(BaseModel):

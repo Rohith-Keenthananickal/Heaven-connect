@@ -1,12 +1,12 @@
 from shlex import join
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import null, select, func, and_, or_
 from fastapi import HTTPException, status
 from datetime import datetime
 from app.models.property import (
     Property, Room, Facility, PropertyPhoto, Location, 
-    Availability, PropertyAgreement, PropertyApproval, PhotoCategory, PropertyType, PropertyStatus, 
+    Availability, PropertyAgreement, PropertyApproval, PropertyDetails, PhotoCategory, PropertyType, PropertyStatus, 
     VerificationStatus, PropertyVerificationStatus
 )
 from app.models.user import User, AreaCoordinator, ApprovalStatus
@@ -14,7 +14,7 @@ from app.schemas.property import (
     PropertyProfileCreate, PropertyProfileUpdate, PropertyDocumentsCreate, RoomCreate,
     FacilityCreate, LocationCreate, AvailabilityCreate,
     PropertyAgreementCreate, PropertyOnboardingStatus, PropertyTypeCreate, PropertyTypeUpdate,
-    PropertyResponse
+    PropertyResponse, PropertyDetailsCreate, PropertyDetailsUpdate
 )
 from app.utils.error_handler import create_server_error_http_exception
 from app.utils.distance import haversine_distance
@@ -162,6 +162,17 @@ class PropertyService:
         db.add(property_obj)
         db.commit()
         db.refresh(property_obj)
+        
+        # Create property details if provided
+        if profile_data.property_details:
+            property_details = PropertyDetails(
+                property_id=property_obj.id,
+                **profile_data.property_details.model_dump()
+            )
+            db.add(property_details)
+            db.commit()
+            db.refresh(property_details)
+        
         return property_obj
 
     @staticmethod
@@ -173,11 +184,35 @@ class PropertyService:
         if not property_obj:
             return None
         update_dict = update_data.model_dump(exclude_unset=True)
+        
+        # Handle property_details separately
+        property_details_data = update_dict.pop("property_details", None)
+        
         if "atp_id" in update_dict:
             update_dict["area_coordinator_id"] = update_dict.pop("atp_id")
         for key, value in update_dict.items():
             if hasattr(property_obj, key):
                 setattr(property_obj, key, value)
+        
+        # Update or create property details
+        if property_details_data:
+            existing_details = db.query(PropertyDetails).filter(PropertyDetails.property_id == property_id).first()
+            if existing_details:
+                # Update existing details
+                details_update = PropertyDetailsUpdate(**property_details_data)
+                details_dict = details_update.model_dump(exclude_unset=True)
+                for key, value in details_dict.items():
+                    if hasattr(existing_details, key):
+                        setattr(existing_details, key, value)
+            else:
+                # Create new details
+                details_create = PropertyDetailsCreate(**property_details_data)
+                property_details = PropertyDetails(
+                    property_id=property_id,
+                    **details_create.model_dump()
+                )
+                db.add(property_details)
+        
         db.commit()
         db.refresh(property_obj)
         return property_obj
@@ -420,7 +455,8 @@ class PropertyService:
             joinedload(Property.location),
             joinedload(Property.availability),
             joinedload(Property.agreements),
-            joinedload(Property.segment)
+            joinedload(Property.segment),
+            joinedload(Property.property_details)
         ).filter(Property.id == property_id).first()
     
     @staticmethod
@@ -519,52 +555,109 @@ class PropertyService:
         )
     
     @staticmethod
+    def _build_property_response(prop: Property) -> PropertyResponse:
+        """Helper method to convert Property model to PropertyResponse, excluding None values"""
+        # Build dict with only non-None values
+        prop_dict = {
+            "id": prop.id,
+            "user_id": prop.user_id,
+            "classification": prop.classification,
+            "status": prop.status,
+            "verification_status": prop.verification_status,
+            "progress_step": prop.progress_step,
+            "is_verified": prop.is_verified,
+            "created_at": prop.created_at,
+            "updated_at": prop.updated_at,
+        }
+        
+        # Optional fields - only add if not None
+        optional_fields = [
+            ("property_name", prop.property_name),
+            ("alternate_phone", prop.alternate_phone),
+            ("area_coordinator_id", prop.area_coordinator_id),
+            ("property_type_id", prop.property_type_id),
+            ("id_proof_type", prop.id_proof_type),
+            ("id_proof_url", prop.id_proof_url),
+            ("certificate_number", prop.certificate_number),
+            ("tourism_certificate_number", prop.tourism_certificate_number),
+            ("tourism_certificate_issued_by", prop.tourism_certificate_issued_by),
+            ("tourism_certificate_photos", prop.tourism_certificate_photos),
+            ("trade_license_number", prop.trade_license_number),
+            ("trade_license_images", prop.trade_license_images),
+            ("cover_image", prop.cover_image),
+            ("exterior_images", prop.exterior_images),
+            ("bedroom_images", prop.bedroom_images),
+            ("bathroom_images", prop.bathroom_images),
+            ("living_dining_images", prop.living_dining_images),
+            ("property_details", prop.property_details),
+        ]
+        
+        for key, value in optional_fields:
+            if value is not None:
+                prop_dict[key] = value
+        
+        # Add property_type_name if available
+        if prop.property_type and prop.property_type.name:
+            prop_dict["property_type_name"] = prop.property_type.name
+        
+        return PropertyResponse(**prop_dict)
+    
+    @staticmethod
+    def _apply_array_filter(field, values):
+        """Helper to apply filter for single value or array - SQLAlchemy's in_() handles both"""
+        if not values:
+            return None
+        return field.in_(values) if len(values) > 1 else field == values[0]
+    
+    @staticmethod
     def search_properties(db: Session, search_request) -> dict:
         """Search properties with pagination and filters"""
         try:
-            # Build base query with joins for property type and eager load the relationship
+            # Build base query with eager loading
             query = db.query(Property).join(Property.property_type, isouter=True).options(
-                joinedload(Property.property_type)
+                joinedload(Property.property_type),
+                joinedload(Property.property_details)
             )
+            
             filters = []
             
-            # Apply user ID filter
+            # Simple equality filters
             if search_request.user_id:
                 filters.append(Property.user_id == search_request.user_id)
             
-            # Apply area coordinator ID filter
             if search_request.area_coordinator_id:
                 filters.append(Property.area_coordinator_id == search_request.area_coordinator_id)
             
-            # Apply property type ID filter (array support)
+            # Array filters (handles both single and multiple values)
             if search_request.property_type_id:
-                if len(search_request.property_type_id) == 1:
-                    filters.append(Property.property_type_id == search_request.property_type_id[0])
-                else:
-                    filters.append(Property.property_type_id.in_(search_request.property_type_id))
+                filter_condition = PropertyService._apply_array_filter(
+                    Property.property_type_id, search_request.property_type_id
+                )
+                if filter_condition:
+                    filters.append(filter_condition)
             
-            # Apply property type name filter (array support)
             if search_request.property_type_name:
-                if len(search_request.property_type_name) == 1:
-                    filters.append(PropertyType.name == search_request.property_type_name[0])
-                else:
-                    filters.append(PropertyType.name.in_(search_request.property_type_name))
+                filter_condition = PropertyService._apply_array_filter(
+                    PropertyType.name, search_request.property_type_name
+                )
+                if filter_condition:
+                    filters.append(filter_condition)
             
-            # Apply status filter (array support)
             if search_request.status:
-                if len(search_request.status) == 1:
-                    filters.append(Property.status == search_request.status[0])
-                else:
-                    filters.append(Property.status.in_(search_request.status))
+                filter_condition = PropertyService._apply_array_filter(
+                    Property.status, search_request.status
+                )
+                if filter_condition:
+                    filters.append(filter_condition)
             
-            # Apply verification status filter (array support)
             if search_request.verification_status:
-                if len(search_request.verification_status) == 1:
-                    filters.append(Property.verification_status == search_request.verification_status[0])
-                else:
-                    filters.append(Property.verification_status.in_(search_request.verification_status))
+                filter_condition = PropertyService._apply_array_filter(
+                    Property.verification_status, search_request.verification_status
+                )
+                if filter_condition:
+                    filters.append(filter_condition)
             
-            # Apply date filter
+            # Date range filter
             if search_request.date_filter:
                 if search_request.date_filter.from_date:
                     from_date = datetime.fromtimestamp(search_request.date_filter.from_date / 1000)
@@ -574,80 +667,42 @@ class PropertyService:
                     to_date = datetime.fromtimestamp(search_request.date_filter.to_date / 1000)
                     filters.append(Property.created_at <= to_date)
             
-            # Apply search query filter
+            # Text search filter
             if search_request.search_query:
-                search_term = f"%{search_request.search_query}%"
-                filters.append(Property.property_name.ilike(search_term))
+                filters.append(Property.property_name.ilike(f"%{search_request.search_query}%"))
             
             # Apply all filters
             if filters:
                 query = query.filter(and_(*filters))
             
-            # Order by created_at desc BEFORE pagination
+            # Order and pagination
             query = query.order_by(Property.created_at.desc())
             
-            # Get total count for pagination
+            # Get total count before pagination
             total = query.count()
             
             # Calculate pagination
-            total_pages = (total + search_request.limit - 1) // search_request.limit
             skip = (search_request.page - 1) * search_request.limit
+            total_pages = (total + search_request.limit - 1) // search_request.limit
             
-            # Apply pagination AFTER ordering
-            query = query.offset(skip).limit(search_request.limit)
+            # Apply pagination and execute
+            properties = query.offset(skip).limit(search_request.limit).all()
             
-            # Execute query
-            properties = query.all()
-            
-            # Convert Property objects to PropertyResponse format
-            # PropertyResponse expects property_type_name which isn't on the Property model
-            property_responses = []
-            for prop in properties:
-                # Create a dict with all property fields plus property_type_name
-                prop_dict = {
-                    "id": prop.id,
-                    "user_id": prop.user_id,
-                    "property_name": prop.property_name,
-                    "alternate_phone": prop.alternate_phone,
-                    "area_coordinator_id": prop.area_coordinator_id,
-                    "property_type_id": prop.property_type_id,
-                    "property_type_name": prop.property_type.name if prop.property_type else None,
-                    "id_proof_type": prop.id_proof_type,
-                    "id_proof_url": prop.id_proof_url,
-                    "certificate_number": prop.certificate_number,
-                    "tourism_certificate_number": prop.tourism_certificate_number,
-                    "tourism_certificate_issued_by": prop.tourism_certificate_issued_by,
-                    "tourism_certificate_photos": prop.tourism_certificate_photos,
-                    "trade_license_number": prop.trade_license_number,
-                    "trade_license_images": prop.trade_license_images,
-                    "cover_image": prop.cover_image,
-                    "exterior_images": prop.exterior_images,
-                    "bedroom_images": prop.bedroom_images,
-                    "bathroom_images": prop.bathroom_images,
-                    "living_dining_images": prop.living_dining_images,
-                    "classification": prop.classification,
-                    "status": prop.status,
-                    "verification_status": prop.verification_status,
-                    "progress_step": prop.progress_step,
-                    "is_verified": prop.is_verified,
-                    "created_at": prop.created_at,
-                    "updated_at": prop.updated_at
-                }
-                property_responses.append(PropertyResponse(**prop_dict))
-            
-            # Build pagination info
-            pagination_info = {
-                "page": search_request.page,
-                "limit": search_request.limit,
-                "total": total,
-                "total_pages": total_pages,
-                "has_next": search_request.page < total_pages,
-                "has_prev": search_request.page > 1
-            }
+            # Convert to response models
+            property_responses = [
+                PropertyService._build_property_response(prop) for prop in properties
+            ]
             
             return {
                 "properties": property_responses,
-                "pagination": pagination_info
+                "pagination": {
+                    "page": search_request.page,
+                    "limit": search_request.limit,
+                    "total": total,
+                    "total_pages": total_pages,
+                    "has_next": search_request.page < total_pages,
+                    "has_prev": search_request.page > 1
+                }
             }
             
         except Exception as e:
