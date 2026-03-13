@@ -285,7 +285,7 @@ class PropertyService:
         facility = Facility(
             property_id=property_id,
             category=facility_data.category,
-            details=facility_data.details
+            facility_master_id=facility_data.facility_master_id,
         )
         
         db.add(facility)

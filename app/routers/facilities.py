@@ -2,7 +2,14 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.schemas.facilities import FacilityCreate, FacilityUpdate, FacilityResponse, FacilityListResponse
+from app.schemas.facilities import (
+    FacilityCreate,
+    FacilityUpdate,
+    FacilityResponse,
+    FacilityListResponse,
+    facility_to_response,
+    facility_to_list_response,
+)
 from app.services.facilities_service import facilities_service
 from app.models.property import FacilityCategory
 
@@ -12,10 +19,14 @@ router = APIRouter(prefix="/facilities", tags=["Facilities"])
 
 @router.post("/")
 async def create_facility(facility: FacilityCreate, db: AsyncSession = Depends(get_db)):
-    """Create a new facility"""
+    """Create a new facility linked to a facility master (by facility_master_id)."""
     try:
         db_facility = await facilities_service.create(db, obj_in=facility)
-        return {"status": "success", "data": db_facility}
+        # Return with master populated for consistency
+        db_facility = await facilities_service.get_or_404_with_master(db, db_facility.id)
+        return {"status": "success", "data": facility_to_response(db_facility)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -26,29 +37,31 @@ async def get_facilities(
     limit: int = Query(100, ge=1, le=1000),
     property_id: int = Query(None),
     category: FacilityCategory = Query(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get all facilities with pagination and filters"""
+    """Get all facilities with pagination and filters; each item includes populated facility_master."""
     try:
-        if property_id and category:
-            facilities = await facilities_service.get_by_property_and_category(db, property_id, category)
-        elif property_id:
-            facilities = await facilities_service.get_by_property(db, property_id)
-        elif category:
-            facilities = await facilities_service.get_by_category(db, category, skip=skip, limit=limit)
-        else:
-            facilities = await facilities_service.get_multi(db, skip=skip, limit=limit)
-        return {"status": "success", "data": facilities}
+        filters = None
+        if property_id is not None and category is not None:
+            filters = {"property_id": property_id, "category": category}
+        elif property_id is not None:
+            filters = {"property_id": property_id}
+        elif category is not None:
+            filters = {"category": category}
+        facilities = await facilities_service.get_multi_with_master(
+            db, skip=skip, limit=limit, filters=filters
+        )
+        return {"status": "success", "data": [facility_to_list_response(f) for f in facilities]}
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.get("/{facility_id}")
 async def get_facility(facility_id: int, db: AsyncSession = Depends(get_db)):
-    """Get a specific facility by ID"""
+    """Get a specific facility by ID with facility_master populated."""
     try:
-        db_facility = await facilities_service.get_or_404(db, facility_id, "Facility not found")
-        return {"status": "success", "data": db_facility}
+        db_facility = await facilities_service.get_or_404_with_master(db, facility_id, "Facility not found")
+        return {"status": "success", "data": facility_to_response(db_facility)}
     except HTTPException:
         raise
     except Exception as e:
@@ -57,11 +70,13 @@ async def get_facility(facility_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{facility_id}")
 async def update_facility(facility_id: int, facility_update: FacilityUpdate, db: AsyncSession = Depends(get_db)):
-    """Update a facility"""
+    """Update a facility."""
     try:
         db_facility = await facilities_service.get_or_404(db, facility_id, "Facility not found")
         updated_facility = await facilities_service.update(db, db_obj=db_facility, obj_in=facility_update)
-        return {"status": "success", "data": updated_facility}
+        # Return with master populated
+        updated_facility = await facilities_service.get_or_404_with_master(db, updated_facility.id)
+        return {"status": "success", "data": facility_to_response(updated_facility)}
     except HTTPException:
         raise
     except Exception as e:

@@ -382,21 +382,14 @@ class FacilityCreate(BaseModel):
     facility_name: str = Field(..., min_length=1, max_length=200, description="Name of the facility")
     facility_description: Optional[str] = Field(None, max_length=1000, description="Description of the facility")
     category: FacilityCategory
-    details: Dict[str, Any]
-
-    @validator('details')
-    def validate_details(cls, v):
-        if not v or not isinstance(v, dict):
-            raise ValueError('Details must be a non-empty dictionary')
-        return v
+    facility_master_id: Optional[int] = Field(None, description="ID of the facility master")
 
 
 class FacilityResponse(BaseModel):
     id: int
-    facility_name: str
-    facility_description: Optional[str]
+    facility_name: Optional[str] = None
+    facility_description: Optional[str] = None
     category: FacilityCategory
-    details: Dict[str, Any]
     created_at: datetime
     updated_at: datetime
 

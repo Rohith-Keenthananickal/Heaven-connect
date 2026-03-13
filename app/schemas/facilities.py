@@ -1,31 +1,15 @@
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import datetime
-from app.models.property import FacilityCategory, PropertyClassification
+from app.models.property import FacilityCategory
+from app.schemas.facility_master import FacilityMasterListResponse
 
 
 class FacilityBase(BaseModel):
-    facility_name: str = Field(..., min_length=1, max_length=200, description="Name of the facility")
-    facility_description: Optional[str] = Field(None, max_length=1000, description="Description of the facility")
+    facility_master_id: int = Field(..., description="ID of the facility master (name, description, type)")
     property_id: Optional[int] = Field(None, description="Optional property ID for property-specific facilities")
     category: FacilityCategory
-    property_classification: Optional[PropertyClassification] = Field(None, description="Property classification this facility applies to (for common facilities)")
-    details: Dict[str, Any]
     is_common: bool = Field(False, description="Whether this is a common facility available to all properties")
-    
-    @field_validator('details')
-    @classmethod
-    def validate_details(cls, v):
-        if not v or not isinstance(v, dict):
-            raise ValueError('Details must be a non-empty dictionary')
-        return v
-    
-    @model_validator(mode='after')
-    def validate_property_or_classification(self):
-        # Ensure either property_id or property_classification is provided
-        if not self.property_id and not self.property_classification:
-            raise ValueError('Either property_id or property_classification must be provided')
-        return self
 
 
 class FacilityCreate(FacilityBase):
@@ -33,40 +17,67 @@ class FacilityCreate(FacilityBase):
 
 
 class FacilityUpdate(BaseModel):
-    facility_name: Optional[str] = Field(None, min_length=1, max_length=200, description="Name of the facility")
-    facility_description: Optional[str] = Field(None, max_length=1000, description="Description of the facility")
+    facility_master_id: Optional[int] = Field(None, description="ID of the facility master")
     property_id: Optional[int] = Field(None, description="Optional property ID for property-specific facilities")
     category: Optional[FacilityCategory] = None
-    property_classification: Optional[PropertyClassification] = Field(None, description="Property classification this facility applies to (for common facilities)")
-    details: Optional[Dict[str, Any]] = None
     is_common: Optional[bool] = Field(None, description="Whether this is a common facility available to all properties")
-    
-    @field_validator('details')
-    @classmethod
-    def validate_details(cls, v):
-        if v is not None and (not v or not isinstance(v, dict)):
-            raise ValueError('Details must be a non-empty dictionary')
-        return v
 
 
-class FacilityResponse(FacilityBase):
+class FacilityResponse(BaseModel):
     id: int
+    facility_master_id: Optional[int]
+    facility_master: Optional[FacilityMasterListResponse] = Field(None, description="Populated master data (name, description, type, status)")
+    property_id: Optional[int]
+    category: FacilityCategory
+    is_common: bool
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 
 
 class FacilityListResponse(BaseModel):
     id: int
-    facility_name: str
-    facility_description: Optional[str]
+    facility_master_id: Optional[int]
+    facility_master: Optional[FacilityMasterListResponse] = Field(None, description="Populated master data")
     property_id: Optional[int]
     category: FacilityCategory
-    property_classification: Optional[PropertyClassification]
     is_common: bool
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
+
+
+def facility_to_response(db_facility) -> FacilityResponse:
+    """Build FacilityResponse from ORM with facility_master populated."""
+    master = None
+    if getattr(db_facility, "facility_master", None) is not None:
+        master = FacilityMasterListResponse.model_validate(db_facility.facility_master)
+    return FacilityResponse(
+        id=db_facility.id,
+        facility_master_id=db_facility.facility_master_id,
+        facility_master=master,
+        property_id=db_facility.property_id,
+        category=db_facility.category,
+        is_common=db_facility.is_common,
+        created_at=db_facility.created_at,
+        updated_at=db_facility.updated_at,
+    )
+
+
+def facility_to_list_response(db_facility) -> FacilityListResponse:
+    """Build FacilityListResponse from ORM with facility_master populated."""
+    master = None
+    if getattr(db_facility, "facility_master", None) is not None:
+        master = FacilityMasterListResponse.model_validate(db_facility.facility_master)
+    return FacilityListResponse(
+        id=db_facility.id,
+        facility_master_id=db_facility.facility_master_id,
+        facility_master=master,
+        property_id=db_facility.property_id,
+        category=db_facility.category,
+        is_common=db_facility.is_common,
+        created_at=db_facility.created_at,
+    )

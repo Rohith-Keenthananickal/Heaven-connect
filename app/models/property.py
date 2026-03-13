@@ -228,17 +228,17 @@ class Facility(Base):
     __tablename__ = "facilities"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    facility_name: Mapped[str] = mapped_column(String(200), nullable=False, comment="Name of the facility")
-    facility_description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True, comment="Description of the facility")
+    facility_master_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("facility_masters.id"), nullable=True, index=True, comment="Reference to facility master (name, description, type)")
+    facility_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Deprecated: use facility_master; kept for backward compatibility")
+    facility_description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True, comment="Deprecated: use facility_master; kept for backward compatibility")
     property_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("properties.id"), nullable=True, comment="Optional property ID for property-specific facilities")
     category: Mapped[FacilityCategory] = mapped_column(Enum(FacilityCategory), nullable=False)
-    property_classification: Mapped[Optional[PropertyClassification]] = mapped_column(Enum(PropertyClassification), nullable=True, comment="Property classification this facility applies to (for common facilities)")
-    details: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)  # Store facility details as JSON
     is_common: Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether this is a common facility available to all properties")
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    facility_master: Mapped[Optional["FacilityMaster"]] = relationship("FacilityMaster", lazy="selectin", foreign_keys=[facility_master_id])
     property: Mapped[Optional["Property"]] = relationship("Property", back_populates="facilities")
 
 
