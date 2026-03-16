@@ -1,4 +1,4 @@
-from sqlalchemy import Float, Integer, String, DateTime, Boolean, Date, ForeignKey, JSON, Enum
+from sqlalchemy import Float, Integer, String, DateTime, Boolean, Date, ForeignKey, JSON, Enum, Table, Column
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
@@ -139,6 +139,16 @@ class Segment(Base):
     properties: Mapped[List["Property"]] = relationship("Property", back_populates="segment")
 
 
+# Junction table for many-to-many relationship between Facility and FacilityMaster
+facility_facility_masters = Table(
+    "facility_facility_masters",
+    Base.metadata,
+    Column("facility_id", Integer, ForeignKey("facilities.id", ondelete="CASCADE"), primary_key=True),
+    Column("facility_master_id", Integer, ForeignKey("facility_masters.id", ondelete="CASCADE"), primary_key=True),
+    comment="Junction table for many-to-many relationship between facilities and facility masters"
+)
+
+
 class FacilityMaster(Base):
     """Master list of facility types (e.g. WiFi, Pool) that can be assigned to properties or rooms."""
     __tablename__ = "facility_masters"
@@ -150,6 +160,9 @@ class FacilityMaster(Base):
     status: Mapped[FacilityMasterStatus] = mapped_column(Enum(FacilityMasterStatus), default=FacilityMasterStatus.ACTIVE, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    facilities: Mapped[List["Facility"]] = relationship("Facility", secondary=facility_facility_masters, back_populates="facility_masters")
 
 
 class Property(Base):
@@ -228,7 +241,7 @@ class Facility(Base):
     __tablename__ = "facilities"
     
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    facility_master_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("facility_masters.id"), nullable=True, index=True, comment="Reference to facility master (name, description, type)")
+    facility_master_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("facility_masters.id"), nullable=True, index=True, comment="Deprecated: use facility_masters relationship; kept for backward compatibility during migration")
     facility_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="Deprecated: use facility_master; kept for backward compatibility")
     facility_description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True, comment="Deprecated: use facility_master; kept for backward compatibility")
     property_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("properties.id"), nullable=True, comment="Optional property ID for property-specific facilities")
@@ -238,7 +251,9 @@ class Facility(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     # Relationships
-    facility_master: Mapped[Optional["FacilityMaster"]] = relationship("FacilityMaster", lazy="selectin", foreign_keys=[facility_master_id])
+    facility_masters: Mapped[List["FacilityMaster"]] = relationship("FacilityMaster", secondary=facility_facility_masters, lazy="selectin", back_populates="facilities")
+    # Keep old relationship for backward compatibility during migration
+    facility_master: Mapped[Optional["FacilityMaster"]] = relationship("FacilityMaster", lazy="selectin", foreign_keys=[facility_master_id], viewonly=True)
     property: Mapped[Optional["Property"]] = relationship("Property", back_populates="facilities")
 
 
@@ -348,6 +363,11 @@ class PropertyDetails(Base):
     # Nearby activities
     nearby_activities: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of nearby activities (e.g., ['Beach', 'Trekking', 'Water Sports'])")
     
+    nearby_attractions: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of nearby attractions (e.g., ['Beach', 'Trekking', 'Water Sports'])")
+    seasonal_experiences: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of seasonal experiences (e.g., ['Monsoon', 'Winter', 'Summer'])")
+    comfort_services_list: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, comment="Array of comfort services (e.g., ['Massage', 'Spa', 'Yoga'])")
+    noise_level:Mapped[bool] = mapped_column(Boolean, default=False, comment="Whether noise level is acceptable")
+
     # Check-in/Check-out times (stored as strings, e.g., "14:00" or "2:00 PM")
     checkin_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, comment="Check-in time (e.g., '14:00' or '2:00 PM')")
     checkout_time: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, comment="Check-out time (e.g., '11:00' or '11:00 AM')")

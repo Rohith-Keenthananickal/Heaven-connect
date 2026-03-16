@@ -14,14 +14,32 @@ class FacilitiesService(BaseService[Facility, FacilityCreate, FacilityUpdate]):
         super().__init__(Facility)
 
     async def create(self, db: AsyncSession, *, obj_in: FacilityCreate) -> Facility:
-        """Create a facility after validating facility_master_id exists."""
-        await facility_master_service.get_or_404(db, obj_in.facility_master_id, "Facility master not found")
-        return await super().create(db, obj_in=obj_in)
+        """Create a facility after validating all facility_master_ids exist."""
+        # Validate all facility master IDs exist
+        for master_id in obj_in.facility_master_ids:
+            await facility_master_service.get_or_404(db, master_id, f"Facility master with ID {master_id} not found")
+        
+        # Create facility without facility_master_ids (we'll add them via relationship)
+        create_data = obj_in.model_dump(exclude={"facility_master_ids"})
+        db_facility = Facility(**create_data)
+        db.add(db_facility)
+        await db.flush()  # Get the ID
+        
+        # Add facility masters via relationship
+        from app.models.property import FacilityMaster
+        facility_masters = await db.execute(
+            select(FacilityMaster).where(FacilityMaster.id.in_(obj_in.facility_master_ids))
+        )
+        db_facility.facility_masters = list(facility_masters.scalars().all())
+        
+        await db.commit()
+        await db.refresh(db_facility)
+        return db_facility
 
     async def get_with_master(self, db: AsyncSession, id: int) -> Optional[Facility]:
-        """Get a facility by ID with facility_master relationship loaded."""
+        """Get a facility by ID with facility_masters relationship loaded."""
         result = await db.execute(
-            select(Facility).where(Facility.id == id).options(selectinload(Facility.facility_master))
+            select(Facility).where(Facility.id == id).options(selectinload(Facility.facility_masters))
         )
         return result.scalar_one_or_none()
 
@@ -40,8 +58,8 @@ class FacilitiesService(BaseService[Facility, FacilityCreate, FacilityUpdate]):
         limit: int = 100,
         filters: Optional[dict] = None,
     ) -> List[Facility]:
-        """Get facilities with facility_master relationship loaded."""
-        query = select(Facility).options(selectinload(Facility.facility_master)).offset(skip).limit(limit)
+        """Get facilities with facility_masters relationship loaded."""
+        query = select(Facility).options(selectinload(Facility.facility_masters)).offset(skip).limit(limit)
         if filters:
             for field, value in filters.items():
                 if hasattr(Facility, field) and value is not None:
@@ -50,11 +68,33 @@ class FacilitiesService(BaseService[Facility, FacilityCreate, FacilityUpdate]):
         return list(result.scalars().all())
 
     async def update(self, db: AsyncSession, *, db_obj: Facility, obj_in: FacilityUpdate) -> Facility:
-        """Update a facility; validate facility_master_id if provided."""
-        update_data = obj_in.dict(exclude_unset=True)
-        if "facility_master_id" in update_data:
-            await facility_master_service.get_or_404(db, update_data["facility_master_id"], "Facility master not found")
-        return await super().update(db, db_obj=db_obj, obj_in=obj_in)
+        """Update a facility; validate facility_master_ids if provided."""
+        update_data = obj_in.model_dump(exclude_unset=True)
+        
+        # Handle facility_master_ids separately
+        facility_master_ids = update_data.pop("facility_master_ids", None)
+        
+        # Update other fields
+        if update_data:
+            for field, value in update_data.items():
+                setattr(db_obj, field, value)
+        
+        # Update facility masters if provided
+        if facility_master_ids is not None:
+            # Validate all facility master IDs exist
+            for master_id in facility_master_ids:
+                await facility_master_service.get_or_404(db, master_id, f"Facility master with ID {master_id} not found")
+            
+            # Update the relationship
+            from app.models.property import FacilityMaster
+            facility_masters = await db.execute(
+                select(FacilityMaster).where(FacilityMaster.id.in_(facility_master_ids))
+            )
+            db_obj.facility_masters = list(facility_masters.scalars().all())
+        
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
 
     async def get_by_property(self, db: AsyncSession, property_id: int) -> List[Facility]:
         """Get all facilities for a specific property"""
