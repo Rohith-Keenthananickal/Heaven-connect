@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 from fastapi import HTTPException, status
 from app.models.property import Facility, FacilityCategory
 from app.schemas.facilities import FacilityCreate, FacilityUpdate
@@ -39,9 +39,14 @@ class FacilitiesService(BaseService[Facility, FacilityCreate, FacilityUpdate]):
     async def get_with_master(self, db: AsyncSession, id: int) -> Optional[Facility]:
         """Get a facility by ID with facility_masters relationship loaded."""
         result = await db.execute(
-            select(Facility).where(Facility.id == id).options(selectinload(Facility.facility_masters))
+            select(Facility)
+            .where(Facility.id == id)
+            .options(
+                joinedload(Facility.facility_masters),
+                joinedload(Facility.facility_master),
+            )
         )
-        return result.scalar_one_or_none()
+        return result.unique().scalar_one_or_none()
 
     async def get_or_404_with_master(self, db: AsyncSession, id: int, detail: str = "Facility not found") -> Facility:
         """Get a facility by ID with master loaded, or raise 404."""
@@ -59,13 +64,21 @@ class FacilitiesService(BaseService[Facility, FacilityCreate, FacilityUpdate]):
         filters: Optional[dict] = None,
     ) -> List[Facility]:
         """Get facilities with facility_masters relationship loaded."""
-        query = select(Facility).options(selectinload(Facility.facility_masters)).offset(skip).limit(limit)
+        query = (
+            select(Facility)
+            .options(
+                joinedload(Facility.facility_masters),
+                joinedload(Facility.facility_master),
+            )
+            .offset(skip)
+            .limit(limit)
+        )
         if filters:
             for field, value in filters.items():
                 if hasattr(Facility, field) and value is not None:
                     query = query.where(getattr(Facility, field) == value)
         result = await db.execute(query)
-        return list(result.scalars().all())
+        return list(result.unique().scalars().all())
 
     async def update(self, db: AsyncSession, *, db_obj: Facility, obj_in: FacilityUpdate) -> Facility:
         """Update a facility; validate facility_master_ids if provided."""
