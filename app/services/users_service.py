@@ -1495,6 +1495,8 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 )
             )
             otp_record = otp_result.scalar_one_or_none()
+            logger.info(f"OTP record: {otp_record}")
+            print(f"OTP record: {otp_record}")
 
             if not otp_record:
                 raise create_http_exception(
