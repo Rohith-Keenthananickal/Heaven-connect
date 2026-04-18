@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Body
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
 from enum import Enum
@@ -14,7 +15,7 @@ from app.schemas.auth import (
 from typing import Optional, Union
 from pydantic import BaseModel, EmailStr, Field
 from app.services.users_service import users_service
-from app.utils.auth import create_access_token, get_current_user
+from app.utils.auth import create_access_token
 from app.utils.error_handler import (
     create_http_exception,
     create_authentication_http_exception,
@@ -79,6 +80,7 @@ class EmailOTPVerifyResponse(BaseModel):
 
 class PasswordUpdateRequest(BaseModel):
     """Request schema for updating password after OTP verification"""
+    email: EmailStr
     new_password: str = Field(..., min_length=8, max_length=128)
     confirm_password: str = Field(..., min_length=8, max_length=128)
 
@@ -540,10 +542,9 @@ async def resend_email_otp(
 async def update_password_after_reset(
     request: Request,
     update_request: PasswordUpdateRequest,
-    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update the password after OTP verification"""
+    """Update the password after OTP verification (user resolved by email in the request body)."""
     try:
         request_info = extract_request_info(request)
 
@@ -557,9 +558,21 @@ async def update_password_after_reset(
                 trace_id=request_info["trace_id"]
             )
 
+        result = await db.execute(select(User).where(User.email == update_request.email))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise create_http_exception(
+                status_code=status.HTTP_404_NOT_FOUND,
+                message="User with this email not found",
+                error_code=ErrorCodes.USER_NOT_FOUND,
+                path=request_info["path"],
+                method=request_info["method"],
+                trace_id=request_info["trace_id"]
+            )
+
         await users_service.update_password_after_reset(
             db,
-            user=current_user,
+            user=user,
             new_password=update_request.new_password
         )
 
