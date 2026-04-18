@@ -82,6 +82,7 @@ class CommunicationClient:
             "template_type": template_type,
             "template_context": template_context,
         }
+        logger.info(f"Sending template email to {email}: template_type={template_type}, template_context={template_context}, payload={payload}")
 
         last_error = None
         for endpoint in endpoints:

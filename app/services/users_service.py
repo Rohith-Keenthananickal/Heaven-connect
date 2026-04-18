@@ -1468,13 +1468,24 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 error_code=ErrorCodes.OTP_SEND_FAILED
             )
 
-    async def verify_email_otp(self, db: AsyncSession, email: str, otp_code: str) -> Optional[dict]:
-        """Verify email OTP and authenticate user"""
+    async def verify_email_otp(
+        self,
+        db: AsyncSession,
+        email: str,
+        otp_code: str,
+        purpose: Optional[str] = None,
+    ) -> dict:
+        """Verify email OTP.
+
+        Returns:
+            ``{"user": user_dict}`` for login (existing active user).
+            ``{"pre_registration_email_verified": True}`` when purpose is
+            ``EMAIL_VERIFICATION`` and the email is not yet registered.
+        """
         try:
-            # Get OTP record from database
             from app.models.user import OTPVerification
             from datetime import datetime
-            
+
             otp_result = await db.execute(
                 select(OTPVerification).where(
                     OTPVerification.email == email,
@@ -1484,22 +1495,31 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 )
             )
             otp_record = otp_result.scalar_one_or_none()
-            
+
             if not otp_record:
                 raise create_http_exception(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     message="Invalid or expired OTP",
                     error_code=ErrorCodes.INVALID_OTP
                 )
-            
-            # Mark OTP as used
+
+            if purpose == "EMAIL_VERIFICATION":
+                existing = await self.get_by_email(db, email)
+                if existing:
+                    raise create_http_exception(
+                        status_code=status.HTTP_409_CONFLICT,
+                        message="An account with this email already exists",
+                        error_code=ErrorCodes.USER_ALREADY_EXISTS
+                    )
+
             otp_record.is_used = True
             await db.commit()
-            
-            # Mark email as verified
+
             await self.mark_email_verified_on_otp_success(db, email)
-            
-            # Get user and authenticate
+
+            if purpose == "EMAIL_VERIFICATION":
+                return {"pre_registration_email_verified": True}
+
             user = await self.get_by_email(db, email)
             if not user:
                 raise create_http_exception(
@@ -1507,17 +1527,16 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                     message="User not found",
                     error_code=ErrorCodes.USER_NOT_FOUND
                 )
-            
-            # Check if user is active
+
             if user["status"] != UserStatus.ACTIVE:
                 raise create_http_exception(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     message="User account is not active",
                     error_code=ErrorCodes.USER_INACTIVE
                 )
-            
-            return user
-            
+
+            return {"user": user}
+
         except HTTPException:
             raise
         except Exception as e:

@@ -11,6 +11,7 @@ from app.schemas.auth import (
     MobileOTPLoginRequest,
     GoogleLoginRequest
 )
+from typing import Optional, Union
 from pydantic import BaseModel, EmailStr, Field
 from app.services.users_service import users_service
 from app.utils.auth import create_access_token, get_current_user
@@ -45,9 +46,15 @@ class EmailOTPRequest(BaseModel):
 
 
 class EmailOTPVerifyRequest(BaseModel):
-    """Request schema for verifying email OTP"""
+    """Request schema for verifying email OTP.
+
+    Use purpose=EMAIL_VERIFICATION when the OTP was sent for pre-registration
+    email proof (same value as /send-email-otp). Omit purpose or use any other
+    purpose for existing-user login after OTP.
+    """
     email: EmailStr
     otp_code: str
+    purpose: Optional[EmailOTPPurpose] = None
 
 
 class EmailOTPResponse(BaseModel):
@@ -57,10 +64,16 @@ class EmailOTPResponse(BaseModel):
     expires_in_minutes: int
 
 
-class EmailOTPLoginResponse(BaseModel):
-    """Response schema for email OTP login"""
+class EmailOTPPreRegistrationVerifyData(BaseModel):
+    """Email verified via OTP before an account exists (registration flow)."""
+    email: EmailStr
+    email_verified: bool = True
+
+
+class EmailOTPVerifyResponse(BaseModel):
+    """Email OTP verify: session tokens for existing users, or proof-only for pre-registration."""
     status: str = "success"
-    data: TokenResponse
+    data: Union[TokenResponse, EmailOTPPreRegistrationVerifyData]
     message: str
 
 
@@ -417,23 +430,31 @@ async def send_email_otp(
         )
 
 
-@router.post("/verify-email-otp", response_model=EmailOTPLoginResponse)
+@router.post("/verify-email-otp", response_model=EmailOTPVerifyResponse)
 async def verify_email_otp(
     request: Request,
     verify_request: EmailOTPVerifyRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Verify email OTP and login user"""
+    """Verify email OTP: logs in existing users, or confirms email for pre-registration when purpose is EMAIL_VERIFICATION."""
     try:
         request_info = extract_request_info(request)
-        
-        # Verify OTP and get user
-        user = await users_service.verify_email_otp(
-            db, 
-            verify_request.email, 
-            verify_request.otp_code
+        purpose_value = verify_request.purpose.value if verify_request.purpose else None
+
+        result = await users_service.verify_email_otp(
+            db,
+            verify_request.email,
+            verify_request.otp_code,
+            purpose=purpose_value,
         )
-        
+
+        if result.get("pre_registration_email_verified"):
+            return EmailOTPVerifyResponse(
+                data=EmailOTPPreRegistrationVerifyData(email=verify_request.email),
+                message="Email verified successfully",
+            )
+
+        user = result.get("user")
         if not user:
             raise create_authentication_http_exception(
                 message="Invalid or expired OTP",
@@ -442,26 +463,25 @@ async def verify_email_otp(
                 method=request_info["method"],
                 trace_id=request_info["trace_id"]
             )
-        
-        # Create access token
+
         token_data = {
             "sub": str(user["id"]),
             "user_type": user["user_type"].value,
             "auth_provider": user["auth_provider"].value
         }
-        
+
         access_token = create_access_token(
             data=token_data,
-            expires_delta=timedelta(minutes=30)  # 30 minutes expiry
+            expires_delta=timedelta(minutes=30)
         )
-        
+
         token_response = TokenResponse(
             access_token=access_token,
-            expires_in=30 * 60,  # 30 minutes in seconds
+            expires_in=30 * 60,
             user=user
         )
-        
-        return EmailOTPLoginResponse(
+
+        return EmailOTPVerifyResponse(
             data=token_response,
             message="Login successful with email OTP"
         )
