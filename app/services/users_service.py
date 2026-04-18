@@ -1500,7 +1500,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                 raise create_http_exception(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     message="Invalid or expired OTP",
-                    error_code=ErrorCodes.INVALID_OTP
+                    error_code=ErrorCodes.OTP_INVALID
                 )
 
             if purpose == "EMAIL_VERIFICATION":
