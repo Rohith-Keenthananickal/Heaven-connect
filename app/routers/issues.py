@@ -40,7 +40,7 @@ def format_issue_response(issue, db: AsyncSession):
         updated_at=issue.updated_at,
         created_by_name=issue.created_by.full_name if issue.created_by else None,
         assigned_to_name=issue.assigned_to.full_name if issue.assigned_to else None,
-        property_name=issue.property.name if issue.property else None,
+        property_name=issue.property.property_name if issue.property else None,
         activities_count=len(issue.activities) if hasattr(issue, 'activities') else 0,
         escalations_count=len(issue.escalations) if hasattr(issue, 'escalations') else 0
     )
