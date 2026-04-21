@@ -1478,7 +1478,7 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
         """Verify email OTP.
 
         Returns:
-            ``{"user": user_dict}`` for login (existing active user).
+            ``{"user": user_dict}`` for an existing active user (after OTP use).
             ``{"pre_registration_email_verified": True}`` when purpose is
             ``EMAIL_VERIFICATION`` and the email is not yet registered.
         """
@@ -1792,8 +1792,10 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
 
         user.password_hash = get_password_hash(new_password)
         await db.commit()
-        await db.refresh(user)
-        return self._convert_user_to_dict(user)
+        # Do not refresh or run _convert_user_to_dict here: that helper reads
+        # lazy-loaded relationships from sync code and raises MissingGreenlet
+        # under AsyncSession. Callers of this method only need a successful commit.
+        return {}
 
     async def get_atp_statistics(
         self, 

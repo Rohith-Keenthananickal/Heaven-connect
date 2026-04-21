@@ -232,8 +232,10 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
                 TrainingProgress.module_id == module_id
             )
         )
-        if content_id:
+        if content_id is not None:
             query = query.where(TrainingProgress.content_id == content_id)
+        else:
+            query = query.where(TrainingProgress.content_id.is_(None))
         
         result = await db.execute(query)
         progress = result.scalar_one_or_none()

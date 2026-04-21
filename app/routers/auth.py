@@ -12,7 +12,7 @@ from app.schemas.auth import (
     MobileOTPLoginRequest,
     GoogleLoginRequest
 )
-from typing import Optional, Union
+from typing import Optional
 from pydantic import BaseModel, EmailStr, Field
 from app.services.users_service import users_service
 from app.utils.auth import create_access_token
@@ -51,7 +51,7 @@ class EmailOTPVerifyRequest(BaseModel):
 
     Use purpose=EMAIL_VERIFICATION when the OTP was sent for pre-registration
     email proof (same value as /send-email-otp). Omit purpose or use any other
-    purpose for existing-user login after OTP.
+    purpose when verifying for an existing account (response is email proof only).
     """
     email: EmailStr
     otp_code: str
@@ -72,9 +72,9 @@ class EmailOTPPreRegistrationVerifyData(BaseModel):
 
 
 class EmailOTPVerifyResponse(BaseModel):
-    """Email OTP verify: session tokens for existing users, or proof-only for pre-registration."""
+    """Successful email OTP verification: confirms the address is verified."""
     status: str = "success"
-    data: Union[TokenResponse, EmailOTPPreRegistrationVerifyData]
+    data: EmailOTPPreRegistrationVerifyData
     message: str
 
 
@@ -438,7 +438,7 @@ async def verify_email_otp(
     verify_request: EmailOTPVerifyRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Verify email OTP: logs in existing users, or confirms email for pre-registration when purpose is EMAIL_VERIFICATION."""
+    """Verify email OTP. On success, returns email and email_verified only (no session tokens)."""
     try:
         request_info = extract_request_info(request)
         purpose_value = verify_request.purpose.value if verify_request.purpose else None
@@ -451,41 +451,25 @@ async def verify_email_otp(
         )
 
         if result.get("pre_registration_email_verified"):
-            return EmailOTPVerifyResponse(
-                data=EmailOTPPreRegistrationVerifyData(email=verify_request.email),
-                message="Email verified successfully",
+            data = EmailOTPPreRegistrationVerifyData(email=verify_request.email)
+        else:
+            user = result.get("user")
+            if not user:
+                raise create_authentication_http_exception(
+                    message="Invalid or expired OTP",
+                    auth_type="otp",
+                    path=request_info["path"],
+                    method=request_info["method"],
+                    trace_id=request_info["trace_id"]
+                )
+            data = EmailOTPPreRegistrationVerifyData(
+                email=verify_request.email,
+                email_verified=bool(user.get("email_verified", True)),
             )
-
-        user = result.get("user")
-        if not user:
-            raise create_authentication_http_exception(
-                message="Invalid or expired OTP",
-                auth_type="otp",
-                path=request_info["path"],
-                method=request_info["method"],
-                trace_id=request_info["trace_id"]
-            )
-
-        token_data = {
-            "sub": str(user["id"]),
-            "user_type": user["user_type"].value,
-            "auth_provider": user["auth_provider"].value
-        }
-
-        access_token = create_access_token(
-            data=token_data,
-            expires_delta=timedelta(minutes=30)
-        )
-
-        token_response = TokenResponse(
-            access_token=access_token,
-            expires_in=30 * 60,
-            user=user
-        )
 
         return EmailOTPVerifyResponse(
-            data=token_response,
-            message="Login successful with email OTP"
+            data=data,
+            message="Email verified successfully",
         )
         
     except HTTPException:
