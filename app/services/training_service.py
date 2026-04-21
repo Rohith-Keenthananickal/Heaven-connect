@@ -9,7 +9,7 @@ from app.models.training import TrainingModule, TrainingContent, TrainingProgres
 from app.schemas.training import (
     TrainingModuleCreate, TrainingModuleUpdate, TrainingContentCreate, TrainingContentUpdate,
     TrainingProgressCreate, TrainingProgressUpdate, QuizSubmission, ProgressUpdate,
-    TrainingStats, ModuleProgressSummary, TrainingModuleWithProgress, TrainingContentWithProgress
+    TrainingStats, ModuleProgressSummary, ModuleContentProgress, TrainingModuleWithProgress, TrainingContentWithProgress
 )
 from app.services.base_service import BaseService
 
@@ -572,12 +572,14 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
         if not module:
             return None
         
-        # Get total contents
-        total_contents_result = await db.execute(
-            select(func.count(TrainingContent.id))
+        # Get all module contents (ordered) for content-level status
+        contents_result = await db.execute(
+            select(TrainingContent)
             .where(TrainingContent.module_id == module_id)
+            .order_by(TrainingContent.content_order)
         )
-        total_contents = total_contents_result.scalar() or 0
+        module_contents = contents_result.scalars().all()
+        total_contents = len(module_contents)
         
         # Get completed contents
         completed_contents_result = await db.execute(
@@ -605,6 +607,40 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
             )
         )
         module_progress = module_progress_result.scalar_one_or_none()
+
+        # Get content-level progress records
+        content_progress_result = await db.execute(
+            select(TrainingProgress)
+            .where(
+                and_(
+                    TrainingProgress.user_id == user_id,
+                    TrainingProgress.module_id == module_id,
+                    TrainingProgress.content_id.isnot(None)
+                )
+            )
+        )
+        content_progress_map = {
+            progress.content_id: progress
+            for progress in content_progress_result.scalars().all()
+            if progress.content_id is not None
+        }
+
+        contents = []
+        for content in module_contents:
+            content_progress = content_progress_map.get(content.id)
+            contents.append(
+                ModuleContentProgress(
+                    content_id=content.id,
+                    title=content.title,
+                    content_type=content.content_type,
+                    content_order=content.content_order,
+                    is_required=content.is_required,
+                    status=content_progress.status if content_progress else TrainingStatus.NOT_STARTED,
+                    progress_percentage=content_progress.progress_percentage if content_progress else 0,
+                    time_spent_seconds=content_progress.time_spent_seconds if content_progress else 0,
+                    completed_at=content_progress.completed_at if content_progress else None,
+                )
+            )
         
         # Calculate progress percentage
         progress_percentage = (completed_contents / total_contents * 100) if total_contents > 0 else 0
@@ -632,5 +668,6 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
             time_spent_seconds=time_spent,
             estimated_duration_minutes=module.estimated_duration_minutes,
             is_completed=is_completed,
-            completed_at=module_progress.completed_at if module_progress else None
+            completed_at=module_progress.completed_at if module_progress else None,
+            contents=contents
         )

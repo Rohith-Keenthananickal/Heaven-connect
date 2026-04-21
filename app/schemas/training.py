@@ -163,6 +163,18 @@ class TrainingStats(BaseModel):
     next_module_id: Optional[int] = None
 
 
+class ModuleContentProgress(BaseModel):
+    content_id: int
+    title: str
+    content_type: ContentType
+    content_order: int
+    is_required: bool
+    status: TrainingStatus = TrainingStatus.NOT_STARTED
+    progress_percentage: int = Field(default=0, ge=0, le=100)
+    time_spent_seconds: int = Field(default=0, ge=0)
+    completed_at: Optional[datetime] = None
+
+
 class ModuleProgressSummary(BaseModel):
     module_id: int
     module_title: str
@@ -174,6 +186,7 @@ class ModuleProgressSummary(BaseModel):
     estimated_duration_minutes: Optional[int] = None
     is_completed: bool = False
     completed_at: Optional[datetime] = None
+    contents: List[ModuleContentProgress] = Field(default_factory=list)
 
 
 # API Response Models following the established pattern
