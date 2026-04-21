@@ -473,6 +473,12 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
                     )
                 )
             
+            if search_request.email:
+                filters.append(User.email.ilike(f"%{search_request.email}%"))
+            
+            if search_request.phone_number:
+                filters.append(User.phone_number.ilike(f"%{search_request.phone_number}%"))
+            
             # Apply filters
             if filters:
                 query = query.where(and_(*filters))

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List, Union
+from pydantic import BaseModel, Field, EmailStr, field_validator
+from typing import Optional, List, Union, Any
 from datetime import datetime, date
 import enum
 from app.models.user import AuthProvider, UserType, UserStatus, ApprovalStatus
@@ -367,10 +367,19 @@ class UserSearchRequest(BaseModel):
     user_type: Optional[List[UserType]] = Field(None, description="Filter by user types (array)")
     page: int = Field(1, ge=1, description="Page number (1-based)")
     search_query: Optional[str] = Field(None, description="Search query for name, email, or phone")
+    email: Optional[str] = Field(None, description="Filter by email (partial match, case-insensitive)")
+    phone_number: Optional[str] = Field(None, description="Filter by phone number (partial match, case-insensitive)")
     date_filter: Optional[DateFilter] = Field(None, description="Date range filter for created_at")
     limit: int = Field(20, ge=1, le=100, description="Number of items per page")
     status: Optional[List[UserStatus]] = Field(None, description="Filter by user statuses (array)")
     approval_status: Optional[List[ApprovalStatus]] = Field(None, description="Filter area coordinators by approval status (array)")
+
+    @field_validator("search_query", "email", "phone_number", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value: Any) -> Any:
+        if value == "":
+            return None
+        return value
 
 
 class UserSearchResponse(BaseModel):
