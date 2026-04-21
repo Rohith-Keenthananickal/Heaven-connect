@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from app.models.issue import (
     Issue, IssueActivity, IssueEscalation,
     IssueType, IssueStatus, IssueStatusEnum, Priority,
-    ActivityType, EscalationLevel
+    ActivityType, EscalationLevel, IssueSource,
 )
 from app.models.user import User
 from app.models.property import Property
@@ -391,6 +391,9 @@ class IssueService(BaseService[Issue, IssueCreate, IssueUpdate]):
         
         if search_params.get("issue"):
             filters.append(Issue.issue.ilike(f"%{search_params['issue']}%"))
+        
+        if search_params.get("source"):
+            filters.append(Issue.source == search_params["source"])
         
         # Only show non-deleted issues by default
         filters.append(Issue.status != IssueStatus.DELETED)

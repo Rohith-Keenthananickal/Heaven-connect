@@ -11,7 +11,7 @@ from .enquiry import Enquiry, Gender, IDCardType, EnquiryStatus
 from .issue import (
     Issue, IssueActivity, IssueEscalation,
     IssueType, IssueStatus, IssueStatusEnum, Priority,
-    EscalationLevel, ActivityType
+    EscalationLevel, ActivityType, IssueSource,
 )
 from .app_config import AppConfig
 
@@ -59,6 +59,7 @@ __all__ = [
     "Priority",
     "EscalationLevel",
     "ActivityType",
+    "IssueSource",
     "Experience",
     "DurationUnit",
     "ExperienceStatus",

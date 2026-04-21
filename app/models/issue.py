@@ -35,6 +35,12 @@ class Priority(str, enum.Enum):
     URGENT = "URGENT"
 
 
+class IssueSource(str, enum.Enum):
+    """Where the issue was submitted from."""
+    INTERNAL_UI = "INTERNAL_UI"
+    EXTERNAL_WEBSITE = "EXTERNAL_WEBSITE"
+
+
 class EscalationLevel(str, enum.Enum):
     LEVEL_1 = "LEVEL_1"
     LEVEL_2 = "LEVEL_2"
@@ -82,6 +88,14 @@ class Issue(Base):
         index=True
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, index=True)
+    source: Mapped[IssueSource] = mapped_column(
+        Enum(IssueSource, native_enum=False, length=50),
+        default=IssueSource.INTERNAL_UI,
+        nullable=False,
+        index=True,
+    )
     property_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
     attachments: Mapped[Optional[List[str]]] = mapped_column(JSON, nullable=True, default=list)
     created_on: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -11,7 +11,7 @@ from app.schemas.issue import (
     IssueEscalationCreate, IssueEscalationCreateAPIResponse, IssueEscalationListAPIResponse,
     IssueEscalationUpdate, IssueEscalationUpdateAPIResponse
 )
-from app.models.issue import IssueStatus, IssueStatusEnum, IssueType, Priority
+from app.models.issue import IssueStatus, IssueStatusEnum, IssueType, Priority, IssueSource
 from app.services.issue_service import issue_service
 from app.schemas.base import PaginationInfo
 
@@ -34,6 +34,9 @@ def format_issue_response(issue, db: AsyncSession):
         issue_status=issue.issue_status,
         priority=issue.priority,
         description=issue.description,
+        email=issue.email,
+        phone=issue.phone,
+        source=issue.source,
         property_id=issue.property_id,
         attachments=issue.attachments or [],
         created_on=issue.created_on,
@@ -106,9 +109,14 @@ async def create_issue(
         "created_by_id": 1,
         "property_id": 1,
         "assigned_to_id": null,
-        "attachments": []
+        "attachments": [],
+        "email": null,
+        "phone": null,
+        "source": "INTERNAL_UI"
     }
     ```
+    
+    For issues submitted from your external website, set `"source": "EXTERNAL_WEBSITE"` and include `email` / `phone` when the guest provides them. Omit `source` or use `INTERNAL_UI` for issues created from your own UI.
     
     Note: An initial activity log is automatically created when the issue is created.
     To add more activities, use the POST /issues/{issue_id}/activities endpoint.
@@ -168,6 +176,10 @@ async def get_issues(
     created_by_id: int = Query(None, description="Filter by creator user ID"),
     assigned_to_id: int = Query(None, description="Filter by assigned user ID"),
     property_id: int = Query(None, description="Filter by property ID"),
+    source: str = Query(
+        None,
+        description="Filter by submission source (INTERNAL_UI, EXTERNAL_WEBSITE)",
+    ),
     db: AsyncSession = Depends(get_db)
 ):
     """Get all issues with pagination and optional filtering"""
@@ -203,6 +215,14 @@ async def get_issues(
             filters["assigned_to_id"] = assigned_to_id
         if property_id:
             filters["property_id"] = property_id
+        if source:
+            try:
+                filters["source"] = IssueSource(source)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid issue source: {source}",
+                )
         
         issues = await issue_service.get_multi(db, skip=skip, limit=limit, filters=filters)
         
