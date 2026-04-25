@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 from fastapi import HTTPException, status
 from app.models.user import User, Guest, Host, AreaCoordinator, BankDetails, AuthProvider, UserStatus, UserType, ApprovalStatus
-from app.schemas.users import UserCreate, UserUpdate, UserSearchRequest
+from app.schemas.users import UserCreate, UserUpdate, UserSearchRequest, GeoMapAtpRequest
 from app.services.base_service import BaseService
 from app.services.communication_client import communication_client
 from app.core.config import settings
@@ -1952,6 +1952,105 @@ class UsersService(BaseService[User, UserCreate, UserUpdate]):
             "pending_experiences": pending_experiences_count,
             "draft_experiences": draft_experiences_count
         }
+
+    async def get_geo_map_atps_with_properties(
+        self, db: AsyncSession, filters: GeoMapAtpRequest
+    ) -> List[dict]:
+        """ATP users with coordinates plus assigned properties whose `location` has coordinates."""
+        from app.models.property import Property, Location
+
+        query = (
+            select(User, AreaCoordinator)
+            .join(AreaCoordinator, AreaCoordinator.id == User.id)
+            .where(
+                and_(
+                    User.user_type == UserType.AREA_COORDINATOR,
+                    AreaCoordinator.latitude.is_not(None),
+                    AreaCoordinator.longitude.is_not(None),
+                )
+            )
+        )
+
+        where_clauses: List[Any] = []
+        if filters.active_only:
+            where_clauses.append(User.status == UserStatus.ACTIVE)
+
+        if filters.district:
+            where_clauses.append(AreaCoordinator.district.ilike(f"%{filters.district}%"))
+        if filters.panchayat:
+            where_clauses.append(AreaCoordinator.panchayat.ilike(f"%{filters.panchayat}%"))
+        if filters.address_line1:
+            where_clauses.append(AreaCoordinator.address_line1.ilike(f"%{filters.address_line1}%"))
+        if filters.address_line2:
+            where_clauses.append(AreaCoordinator.address_line2.ilike(f"%{filters.address_line2}%"))
+        if filters.city:
+            where_clauses.append(AreaCoordinator.city.ilike(f"%{filters.city}%"))
+        if filters.state:
+            where_clauses.append(AreaCoordinator.state.ilike(f"%{filters.state}%"))
+        if filters.postal_code:
+            where_clauses.append(AreaCoordinator.postal_code.ilike(f"%{filters.postal_code}%"))
+
+        if where_clauses:
+            query = query.where(and_(*where_clauses))
+
+        query = query.offset(filters.skip).limit(filters.limit)
+        result = await db.execute(query)
+        records = result.all()
+
+        if not records:
+            return []
+
+        atp_ids = [user.id for user, _ in records]
+
+        props_result = await db.execute(
+            select(Property, Location)
+            .join(Location, Location.property_id == Property.id)
+            .where(
+                and_(
+                    Property.area_coordinator_id.in_(atp_ids),
+                    Location.latitude.is_not(None),
+                    Location.longitude.is_not(None),
+                )
+            )
+        )
+        props_rows = props_result.all()
+
+        by_atp: Dict[int, List[dict]] = {aid: [] for aid in atp_ids}
+        for prop, loc in props_rows:
+            if prop.area_coordinator_id is None:
+                continue
+            by_atp.setdefault(prop.area_coordinator_id, []).append(
+                {
+                    "id": prop.id,
+                    "property_name": prop.property_name,
+                    "user_id": prop.user_id,
+                    "latitude": loc.latitude,
+                    "longitude": loc.longitude,
+                    "address": loc.address,
+                }
+            )
+
+        return [
+            {
+                "id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "profile_image": user.profile_image,
+                "atp_uuid": coordinator.atp_uuid,
+                "latitude": coordinator.latitude,
+                "longitude": coordinator.longitude,
+                "district": coordinator.district,
+                "panchayat": coordinator.panchayat,
+                "address_line1": coordinator.address_line1,
+                "address_line2": coordinator.address_line2,
+                "city": coordinator.city,
+                "state": coordinator.state,
+                "postal_code": coordinator.postal_code,
+                "properties": by_atp.get(user.id, []),
+            }
+            for user, coordinator in records
+        ]
 
 
 # Service instance

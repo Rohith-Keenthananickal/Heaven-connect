@@ -10,7 +10,8 @@ from app.schemas.users import (
     UserCreateAPIResponse, UserListAPIResponse, UserGetAPIResponse, UserUpdateAPIResponse,
     UserStatusUpdateAPIResponse, UserDeleteAPIResponse, UserProfileGetAPIResponse,
     UserTypeListAPIResponse, VerificationStatusUpdate, VerificationStatusResponse,
-    ATPStatisticsRequest, ATPStatisticsResponse, ATPStatisticsData
+    ATPStatisticsRequest, ATPStatisticsResponse, ATPStatisticsData,
+    GeoMapAtpRequest, GeoMapAtpResponse,
 )
 from app.services.users_service import users_service
 
@@ -97,6 +98,27 @@ async def get_users(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch users: {str(e)}"
+        )
+
+
+@router.post("/geo-map", response_model=GeoMapAtpResponse)
+async def get_geo_map_atps(
+    geo_map_request: GeoMapAtpRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """List ATPs with valid coordinates and their assigned properties that have map coordinates."""
+    try:
+        payload = await users_service.get_geo_map_atps_with_properties(db, geo_map_request)
+        return GeoMapAtpResponse(
+            data=payload,
+            message="ATP geo map data retrieved successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch ATP geo map data: {str(e)}",
         )
 
 

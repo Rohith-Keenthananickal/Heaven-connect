@@ -388,6 +388,75 @@ class UserSearchResponse(BaseModel):
     pagination: PaginationInfo
 
 
+class GeoMapPropertyMarker(BaseModel):
+    """Minimal property row for map pins (coordinates from `location` table)."""
+
+    id: int
+    property_name: Optional[str] = None
+    user_id: int = Field(..., description="Host / property owner user id")
+    latitude: float
+    longitude: float
+    address: Optional[str] = None
+
+
+class GeoMapAtpMarker(BaseModel):
+    """ATP (area coordinator) with coordinates and assigned properties that have coordinates."""
+
+    id: int
+    full_name: str
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    profile_image: Optional[str] = None
+    atp_uuid: Optional[str] = None
+    latitude: float
+    longitude: float
+    district: Optional[str] = None
+    panchayat: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    properties: List[GeoMapPropertyMarker] = Field(default_factory=list)
+
+
+class GeoMapAtpRequest(BaseModel):
+    """Filter ATPs by coordinator address fields; only AREA_COORDINATOR users are returned."""
+
+    district: Optional[str] = Field(None, max_length=100)
+    panchayat: Optional[str] = Field(None, max_length=100)
+    address_line1: Optional[str] = Field(None, max_length=200)
+    address_line2: Optional[str] = Field(None, max_length=200)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+    skip: int = Field(0, ge=0, description="Records to skip")
+    limit: int = Field(500, ge=1, le=5000, description="Max ATP records to return")
+    active_only: bool = Field(True, description="Return only ACTIVE ATP users")
+
+    @field_validator(
+        "district",
+        "panchayat",
+        "address_line1",
+        "address_line2",
+        "city",
+        "state",
+        "postal_code",
+        mode="before",
+    )
+    @classmethod
+    def empty_location_filter_to_none(cls, value: Any) -> Any:
+        if value == "":
+            return None
+        return value
+
+
+class GeoMapAtpResponse(BaseModel):
+    status: str = "success"
+    data: List[GeoMapAtpMarker]
+    message: str = "ATP geo map data retrieved successfully"
+
+
 # Profile-specific endpoints schemas
 class ProfileUpdateRequest(BaseModel):
     """Generic profile update request"""
