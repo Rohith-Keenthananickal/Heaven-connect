@@ -6,10 +6,12 @@ from fastapi import HTTPException, status
 from datetime import datetime
 
 from app.models.training import TrainingModule, TrainingContent, TrainingProgress, ContentType, TrainingStatus
+from app.models.user import User, UserType, UserStatus, AreaCoordinator
 from app.schemas.training import (
     TrainingModuleCreate, TrainingModuleUpdate, TrainingContentCreate, TrainingContentUpdate,
     TrainingProgressCreate, TrainingProgressUpdate, QuizSubmission, ProgressUpdate,
-    TrainingStats, ModuleProgressSummary, ModuleContentProgress, TrainingModuleWithProgress, TrainingContentWithProgress
+    TrainingStats, ModuleProgressSummary, ModuleContentProgress, TrainingModuleWithProgress, TrainingContentWithProgress,
+    TrainingAnalyticsData, TrainingAnalyticsSummary, TrainingAnalyticsUserRow,
 )
 from app.services.base_service import BaseService
 
@@ -684,3 +686,221 @@ class TrainingProgressService(BaseService[TrainingProgress, TrainingProgressCrea
             completed_at=module_progress.completed_at if module_progress else None,
             contents=contents
         )
+
+    async def get_admin_training_analytics(self, db: AsyncSession) -> TrainingAnalyticsData:
+        """Roll up training progress for all active ATP (area coordinator) users against active modules."""
+        total_modules_result = await db.execute(
+            select(func.count())
+            .select_from(TrainingModule)
+            .where(TrainingModule.is_active == True)
+        )
+        total_active_modules = int(total_modules_result.scalar() or 0)
+
+        atp_stmt = (
+            select(User.id, User.full_name, User.email, User.phone_number, AreaCoordinator.atp_uuid)
+            .join(AreaCoordinator, AreaCoordinator.id == User.id)
+            .where(
+                User.user_type == UserType.AREA_COORDINATOR,
+                User.status == UserStatus.ACTIVE,
+            )
+            .order_by(User.full_name)
+        )
+        atp_result = await db.execute(atp_stmt)
+        atp_rows = atp_result.all()
+        atp_ids = [row.id for row in atp_rows]
+        total_atps = len(atp_ids)
+
+        if not atp_ids:
+            summary = TrainingAnalyticsSummary(
+                total_atps=0,
+                total_active_training_modules=total_active_modules,
+                total_module_enrollments=0,
+                total_content_progress_rows=0,
+                atps_completed_all_modules=0,
+                completion_rate_percentage=0.0,
+                avg_time_spent_seconds=0.0,
+                users_not_started=0,
+                users_in_progress=0,
+                users_completed=0,
+                users_failed=0,
+                atps_with_any_failed_record=0,
+            )
+            return TrainingAnalyticsData(summary=summary, users=[])
+
+        completed_stmt = (
+            select(
+                TrainingProgress.user_id,
+                func.count(func.distinct(TrainingProgress.module_id)).label("n_completed"),
+            )
+            .join(TrainingModule, TrainingModule.id == TrainingProgress.module_id)
+            .where(
+                TrainingProgress.user_id.in_(atp_ids),
+                TrainingModule.is_active == True,
+                TrainingProgress.content_id.is_(None),
+                TrainingProgress.status == TrainingStatus.COMPLETED,
+            )
+            .group_by(TrainingProgress.user_id)
+        )
+        completed_map = {
+            uid: int(n or 0) for uid, n in (await db.execute(completed_stmt)).all()
+        }
+
+        failed_stmt = (
+            select(TrainingProgress.user_id)
+            .distinct()
+            .join(TrainingModule, TrainingModule.id == TrainingProgress.module_id)
+            .where(
+                TrainingProgress.user_id.in_(atp_ids),
+                TrainingModule.is_active == True,
+                TrainingProgress.status == TrainingStatus.FAILED,
+            )
+        )
+        failed_user_ids = {row[0] for row in (await db.execute(failed_stmt)).all()}
+
+        activity_stmt = (
+            select(TrainingProgress.user_id)
+            .distinct()
+            .join(TrainingModule, TrainingModule.id == TrainingProgress.module_id)
+            .where(
+                TrainingProgress.user_id.in_(atp_ids),
+                TrainingModule.is_active == True,
+                or_(
+                    and_(
+                        TrainingProgress.content_id.isnot(None),
+                        TrainingProgress.status != TrainingStatus.NOT_STARTED,
+                    ),
+                    and_(
+                        TrainingProgress.content_id.is_(None),
+                        or_(
+                            TrainingProgress.status != TrainingStatus.NOT_STARTED,
+                            TrainingProgress.started_at.isnot(None),
+                        ),
+                    ),
+                ),
+            )
+        )
+        activity_user_ids = {row[0] for row in (await db.execute(activity_stmt)).all()}
+
+        time_stmt = (
+            select(
+                TrainingProgress.user_id,
+                func.coalesce(func.sum(TrainingProgress.time_spent_seconds), 0).label("total_seconds"),
+            )
+            .where(TrainingProgress.user_id.in_(atp_ids))
+            .group_by(TrainingProgress.user_id)
+        )
+        time_map = {uid: int(t or 0) for uid, t in (await db.execute(time_stmt)).all()}
+
+        last_stmt = (
+            select(
+                TrainingProgress.user_id,
+                func.max(
+                    func.coalesce(
+                        TrainingProgress.last_accessed_at,
+                        TrainingProgress.updated_at,
+                    )
+                ).label("last_ts"),
+            )
+            .where(TrainingProgress.user_id.in_(atp_ids))
+            .group_by(TrainingProgress.user_id)
+        )
+        last_map = {
+            uid: ts
+            for uid, ts in (await db.execute(last_stmt)).all()
+            if ts is not None
+        }
+
+        enroll_stmt = (
+            select(func.count(TrainingProgress.id))
+            .join(TrainingModule, TrainingModule.id == TrainingProgress.module_id)
+            .where(
+                TrainingProgress.user_id.in_(atp_ids),
+                TrainingModule.is_active == True,
+                TrainingProgress.content_id.is_(None),
+            )
+        )
+        total_module_enrollments = int((await db.execute(enroll_stmt)).scalar() or 0)
+
+        all_progress_stmt = select(func.count(TrainingProgress.id)).where(
+            TrainingProgress.user_id.in_(atp_ids)
+        )
+        total_content_progress_rows = int((await db.execute(all_progress_stmt)).scalar() or 0)
+
+        users_out: List[TrainingAnalyticsUserRow] = []
+        users_not_started = 0
+        users_in_progress = 0
+        users_completed = 0
+        users_failed = 0
+        atps_completed_all_modules = 0
+
+        for row in atp_rows:
+            uid = row.id
+            completed_modules = completed_map.get(uid, 0)
+            has_failed = uid in failed_user_ids
+            has_activity = uid in activity_user_ids
+            total_time = time_map.get(uid, 0)
+            last_activity_at = last_map.get(uid)
+
+            if total_active_modules == 0:
+                overall = TrainingStatus.NOT_STARTED
+                progress_pct = 0.0
+            elif completed_modules >= total_active_modules:
+                overall = TrainingStatus.COMPLETED
+                progress_pct = 100.0
+                atps_completed_all_modules += 1
+            elif has_failed:
+                overall = TrainingStatus.FAILED
+                progress_pct = round((completed_modules / total_active_modules) * 100, 2)
+            elif has_activity:
+                overall = TrainingStatus.IN_PROGRESS
+                progress_pct = round((completed_modules / total_active_modules) * 100, 2)
+            else:
+                overall = TrainingStatus.NOT_STARTED
+                progress_pct = round((completed_modules / total_active_modules) * 100, 2)
+
+            if overall == TrainingStatus.NOT_STARTED:
+                users_not_started += 1
+            elif overall == TrainingStatus.IN_PROGRESS:
+                users_in_progress += 1
+            elif overall == TrainingStatus.COMPLETED:
+                users_completed += 1
+            else:
+                users_failed += 1
+
+            users_out.append(
+                TrainingAnalyticsUserRow(
+                    user_id=uid,
+                    full_name=row.full_name,
+                    email=row.email,
+                    phone_number=row.phone_number,
+                    atp_uuid=row.atp_uuid,
+                    overall_training_status=overall,
+                    completed_modules=completed_modules,
+                    total_active_modules=total_active_modules,
+                    overall_progress_percentage=progress_pct,
+                    total_time_spent_seconds=total_time,
+                    last_activity_at=last_activity_at,
+                )
+            )
+
+        time_totals = [time_map.get(uid, 0) for uid in atp_ids]
+        avg_time = sum(time_totals) / total_atps if total_atps else 0.0
+        completion_rate = (
+            (atps_completed_all_modules / total_atps) * 100.0 if total_atps else 0.0
+        )
+
+        summary = TrainingAnalyticsSummary(
+            total_atps=total_atps,
+            total_active_training_modules=total_active_modules,
+            total_module_enrollments=total_module_enrollments,
+            total_content_progress_rows=total_content_progress_rows,
+            atps_completed_all_modules=atps_completed_all_modules,
+            completion_rate_percentage=round(completion_rate, 2),
+            avg_time_spent_seconds=round(avg_time, 2),
+            users_not_started=users_not_started,
+            users_in_progress=users_in_progress,
+            users_completed=users_completed,
+            users_failed=users_failed,
+            atps_with_any_failed_record=len(failed_user_ids),
+        )
+        return TrainingAnalyticsData(summary=summary, users=users_out)

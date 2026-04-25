@@ -241,10 +241,9 @@ async def get_module_progress(
 async def get_training_analytics(
     db: AsyncSession = Depends(get_db)
 ):
-    """Get training analytics for all users"""
-    # This would need to be implemented based on specific analytics requirements
-    # For now, returning a placeholder
-    return TrainingAnalyticsAPIResponse(data=[{"message": "Analytics endpoint - to be implemented based on requirements"}])
+    """Admin view: ATP (area coordinator) training rollups and per-user status vs active modules."""
+    analytics = await progress_service.get_admin_training_analytics(db)
+    return TrainingAnalyticsAPIResponse(data=analytics)
 
 
 @training_controller_router.get("/admin/user/{user_id}/progress", response_model=TrainingStatsAPIResponse)

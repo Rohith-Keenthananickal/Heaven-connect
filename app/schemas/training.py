@@ -295,8 +295,69 @@ class UserTrainingModulesAPIResponse(BaseModel):
     message: str = "User training modules retrieved successfully"
 
 
+class TrainingAnalyticsSummary(BaseModel):
+    """Aggregate training metrics for all ATP (area coordinator) users."""
+    total_atps: int = Field(..., ge=0, description="Active users with AREA_COORDINATOR type and a coordinator profile")
+    total_active_training_modules: int = Field(..., ge=0)
+    total_module_enrollments: int = Field(
+        ...,
+        ge=0,
+        description="Module-level progress rows (user × active module) for ATPs",
+    )
+    total_content_progress_rows: int = Field(
+        ...,
+        ge=0,
+        description="All training_progress rows for ATPs (module + content level)",
+    )
+    atps_completed_all_modules: int = Field(..., ge=0)
+    completion_rate_percentage: float = Field(
+        ...,
+        description="Share of ATPs who completed every active module (0–100)",
+    )
+    avg_time_spent_seconds: float = Field(
+        ...,
+        description="Mean of per-ATP total time_spent_seconds (ATPs with no rows count as 0)",
+    )
+    users_not_started: int = Field(..., ge=0, description="Exclusive: no qualifying activity on active modules")
+    users_in_progress: int = Field(..., ge=0, description="Exclusive: active but not completed and no blocking FAILED")
+    users_completed: int = Field(..., ge=0, description="Exclusive: every active module completed at module level")
+    users_failed: int = Field(
+        ...,
+        ge=0,
+        description="Exclusive: not fully complete and has at least one FAILED row on an active module",
+    )
+    atps_with_any_failed_record: int = Field(
+        ...,
+        ge=0,
+        description="ATPs with ≥1 FAILED progress row on an active module (may still be COMPLETED overall)",
+    )
+
+
+class TrainingAnalyticsUserRow(BaseModel):
+    """Per–area-coordinator training rollup against active modules."""
+    user_id: int
+    full_name: str
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+    atp_uuid: Optional[str] = None
+    overall_training_status: TrainingStatus
+    completed_modules: int = Field(..., ge=0)
+    total_active_modules: int = Field(..., ge=0)
+    overall_progress_percentage: float = Field(
+        ...,
+        description="completed_modules / total_active_modules × 100",
+    )
+    total_time_spent_seconds: int = Field(..., ge=0)
+    last_activity_at: Optional[datetime] = None
+
+
+class TrainingAnalyticsData(BaseModel):
+    summary: TrainingAnalyticsSummary
+    users: List[TrainingAnalyticsUserRow]
+
+
 class TrainingAnalyticsAPIResponse(BaseModel):
     """Response schema for training analytics"""
     status: str = "success"
-    data: List[dict]
+    data: TrainingAnalyticsData
     message: str = "Training analytics retrieved successfully"
