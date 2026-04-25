@@ -50,12 +50,11 @@ async def get_training_modules(
     db: AsyncSession = Depends(get_db)
 ):
     """Get all training modules"""
-    if active_only:
-        modules = await module_service.get_active_modules(db, skip=skip, limit=limit)
-    else:
-        modules = await module_service.get_multi(db, skip=skip, limit=limit)
-    
-    return TrainingModuleListAPIResponse(data=modules)
+    modules = await module_service.get_modules(
+        db, skip=skip, limit=limit, active_only=active_only
+    )
+    data = [TrainingModuleResponse.model_validate(m) for m in modules]
+    return TrainingModuleListAPIResponse(data=data)
 
 
 @training_modules_router.get("/modules/{module_id}", response_model=TrainingModuleGetAPIResponse)

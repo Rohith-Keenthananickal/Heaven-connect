@@ -71,23 +71,36 @@ class TrainingModuleService(BaseService[TrainingModule, TrainingModuleCreate, Tr
         )
         return result.scalar_one_or_none()
 
-    async def get_active_modules(
-        self, 
-        db: AsyncSession, 
-        *, 
-        skip: int = 0, 
-        limit: int = 100
+    async def get_modules(
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        active_only: bool = True,
     ) -> List[TrainingModule]:
-        """Get active training modules ordered by module_order"""
-        result = await db.execute(
+        """List training modules with optional active filter, contents eager-loaded."""
+        stmt = (
             select(TrainingModule)
             .options(selectinload(TrainingModule.contents))
-            .where(TrainingModule.is_active == True)
             .order_by(TrainingModule.module_order)
             .offset(skip)
             .limit(limit)
         )
+        if active_only:
+            stmt = stmt.where(TrainingModule.is_active == True)
+        result = await db.execute(stmt)
         return result.scalars().all()
+
+    async def get_active_modules(
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[TrainingModule]:
+        """Get active training modules ordered by module_order"""
+        return await self.get_modules(db, skip=skip, limit=limit, active_only=True)
 
     async def get_modules_with_user_progress(
         self, 
